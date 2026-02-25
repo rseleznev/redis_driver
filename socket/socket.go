@@ -5,11 +5,11 @@ import (
 	"syscall"
 )
 
-func New() (*int, error) {
+func ConnectNew(epollFd int) (int, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка создания сокета: %w", err)
+		return 0, fmt.Errorf("ошибка создания сокета: %w", err)
 	}
 	fmt.Println("Сокет создан!")
 
@@ -18,6 +18,7 @@ func New() (*int, error) {
 		Sec: 5,
 		Usec: 0,
 	}
+	// !Изучить, какие тут могут быть ошибки
 	syscall.SetsockoptTimeval(socketFd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &timeoutSetting)
 	syscall.SetsockoptTimeval(socketFd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &timeoutSetting)
 
@@ -32,5 +33,50 @@ func New() (*int, error) {
 
 	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1) // отключаем задержки
 
-	return &socketFd, nil
+	// Подключение
+	// Адрес другой стороны
+	var addr syscall.SockaddrInet4
+	addr.Port = 6379
+	addr.Addr = [4]byte{127, 0, 0, 1}
+
+	// Подключение сокета
+	// !Убедиться, что можно не смотреть ошибку
+	syscall.Connect(socketFd, &addr) // результат ловим через epoll
+
+	// Создаем событие
+	epollEvent := syscall.EpollEvent{
+		Events: syscall.EPOLLOUT,
+		Fd: int32(socketFd),
+		Pad: 0, // узнать, что это
+	}
+
+	// Добавляем запись в interest list
+	err = syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, socketFd, &epollEvent)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка добавления события в epoll: %w", err)
+	}
+	fmt.Println("Добавлено событие в epoll")
+
+	// Ждем результат
+	_, err = syscall.EpollWait(epollFd, []syscall.EpollEvent{epollEvent}, 100) // если за указанный таймаут события не будет, выполнение пойдет дальше
+	if err != nil {
+		return 0, fmt.Errorf("ошибка ожидания epoll: %w", err)
+	}
+
+	// Проверяем ошибку в сокете
+	_, err = syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
+	if err != nil {
+		fmt.Println("Ошибка в GetsockoptInt: ", err)
+	}
+	// Проверяем полученное событие
+	if epollEvent.Events & syscall.EPOLLOUT != 0 {
+		fmt.Println("Пришло событие EPOLLOUT!")
+	}
+	if epollEvent.Events & syscall.EPOLLERR != 0 {
+		fmt.Println("Пришло событие EPOLLERR!")
+	}
+
+	fmt.Println("Сокет подключен!")
+
+	return socketFd, nil
 }
