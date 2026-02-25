@@ -2,127 +2,90 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"syscall"
+
+	// "redis_driver/send"
+	"redis_driver/epoll"
+	"redis_driver/models"
+	"redis_driver/socket"
+	// "redis_driver/receive"
 )
 
 func main() {
 	// Создаем сокет
-	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	socketFd, err := socket.New()
 	if err != nil {
-		fmt.Println("Ошибка создания сокета", err)
-	} else {
-		fmt.Println("Сокет создан!")
+		fmt.Println(err)
 	}
-
 	// Создаем epoll
-	epollFd, err := syscall.EpollCreate(1)
+	epollFd, err := epoll.New()
 	if err != nil {
-		fmt.Println("Ошибка создания epoll", err)
-	} else {
-		fmt.Println("epoll создан")
+		fmt.Println(err)
 	}
 
-	// Создаем epoll_event
-	event := syscall.EpollEvent{
-		Events: syscall.EPOLLIN,
-		Fd: int32(socketFd),
+	// Адрес другой стороны
+	var addr syscall.SockaddrInet4
+	addr.Port = 6379
+	addr.Addr = [4]byte{127, 0, 0, 1}
+	
+	// Подключение сокета
+	err = syscall.Connect(*socketFd, &addr)
+	if err != nil {
+		fmt.Println("Блокировка на подключении сокета")
+	}
+	// создаем событие
+	epollEvent := syscall.EpollEvent{
+		Events: syscall.EPOLLOUT,
+		Fd: int32(*socketFd),
 		Pad: 0, // узнать, что это
 	}
 
 	// Добавляем запись в interest list
-	err = syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, socketFd, &event)
+	err = syscall.EpollCtl(*epollFd, syscall.EPOLL_CTL_ADD, *socketFd, &epollEvent)
 	if err != nil {
-		fmt.Println("Ошибка добавления записи в epoll", err)
-	} else {
-		fmt.Println("Добавлена запись в epoll")
+		fmt.Println(err)
+	}
+	fmt.Println("Добавлена запись в epoll")
+
+	defer syscall.Close(*socketFd)
+
+	// Создаем очередь для ожидания событий
+	eventQueue := []models.EpollEvent{}
+	eventQueue = append(eventQueue, models.EpollEvent{
+		Type: "connect",
+		Event: epollEvent,
+	})
+
+	// Обрабатываем очередь событий
+	for len(eventQueue) > 0 {
+		event := eventQueue[0]
+
+		switch event.Type {
+		case "connect":
+			_, err = syscall.EpollWait(*epollFd, []syscall.EpollEvent{event.Event}, 100) // здесь блокировка на каждом событии
+			if err != nil {
+				fmt.Println("ошибка ожидания epoll: ", err)
+			}
+			fmt.Println("epoll настроен!?")
+			eventQueue = eventQueue[:len(eventQueue)-1]
+		}
 	}
 
-	n, err := syscall.EpollWait(epollFd, []syscall.EpollEvent{event}, 100)
-	if err != nil {
-		fmt.Println("Ошибка ожидания epoll", err)
-	} else {
-		fmt.Println("epoll настроен!?")
-		fmt.Println(n)
-	}
+	// // Проверочная команда
+	// testReq := []byte{'*', '1', '\r', '\n', '$', '4', '\r', '\n', 'P', 'I', 'N', 'G', '\r', '\n'}
 
-	// Настраиваем таймауты
-	timeoutSetting := syscall.Timeval{
-		Sec: 5,
-		Usec: 0,
-	}
-	syscall.SetsockoptTimeval(socketFd, syscall.SOL_SOCKET, syscall.SO_SNDTIMEO, &timeoutSetting)
-	syscall.SetsockoptTimeval(socketFd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &timeoutSetting)
+	// // Отправка сообщения
+	// // Здесь блокировка при отправке
+	// err = send.Message(*socketFd, testReq)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
 
-	// Включаем keep alive
-	syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
-
-	// Настраиваем проверку keep alive
-	// специфично для Linux!
-	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPIDLE, 300) // через 5 минут без активности...
-	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, 60) // отправляется тестовый пакет, ждем 60 секунд...
-	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPCNT, 5) // после 5 неудачных попыток соединение закрывается
-
-	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1) // отключаем задержки
-
-	// Подключаемся
-	var addr syscall.SockaddrInet4
-
-	addr.Port = 6379
-	addr.Addr = [4]byte{127, 0, 0, 1}
-
-	// Подключение
-	err = syscall.Connect(socketFd, &addr)
-	if err != nil {
-		fmt.Println("Ошибка подключения к серверу", err)
-	} else {
-		fmt.Println("Подключение успешно!")
-	}
-
-	defer syscall.Close(socketFd)
-	defer syscall.Close(epollFd)
-
-	// Проверочная команда
-	testReq := []byte{'*', '1', '\r', '\n', '$', '4', '\r', '\n', 'P', 'I', 'N', 'G', '\r', '\n'}
-
-	n, err = syscall.SendmsgN(socketFd, testReq, nil, nil, 0)
-	if err != nil {
-		fmt.Println("Ошибка отправки запроса", err)
-	}
-	if n != len(testReq) {
-		fmt.Println("Не все данные отправлены!")
-	} else {
-		fmt.Println("Принято байт на отправку: ", n)
-	}
-
-	// Читаем ответ
-	buf := make([]byte, 1024) // 8192
-
-	n, _, coreFlags, _, err := syscall.Recvmsg(socketFd, buf, nil, 0)
-	if err != nil {
-		fmt.Println("Ошибка чтения ответа", err)
-		log.Fatal()
-	}
-	// Проверка флагов ядра
-	// В буфер влезло не все
-	if coreFlags & syscall.MSG_TRUNC != 0 {
-		fmt.Println("Данные не влезли в буфер!")
-	}
-	// Доп проверка, не должна срабатывать
-	if coreFlags & syscall.MSG_CTRUNC != 0 {
-		fmt.Println("Обрезаны oob-данные")
-}
-
-	fmt.Println("Прочитано байт: ", n)
-	ParseResponse(buf[:n])
-}
-
-func ParseResponse(input []byte) string {
-	var result string
-
-	for _, v := range input {
-		fmt.Printf("Байт: %q \n", v)
-	}
-
-	return result
+	// // Читаем ответ
+	// // Здесь блокировка при чтении
+	// response, err := receive.Message(*socketFd)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// fmt.Println(response)
 }
