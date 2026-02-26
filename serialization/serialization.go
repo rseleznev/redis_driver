@@ -1,10 +1,10 @@
-package parser
+package serialization
 
 import (
 	"fmt"
 )
 
-func ParseResponse(input []byte) string {
+func Decode(input []byte) string {
 	var result string
 
 	for _, v := range input {

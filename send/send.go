@@ -1,12 +1,14 @@
 package send
 
 import (
-	"errors"
 	"fmt"
+	"errors"
 	"syscall"
 )
 
+// Отправить сообщение на сервер
 func Message(socket int, data []byte) error {
+	// Системный вызов для отправки
 	n, err := syscall.SendmsgN(socket, data, nil, nil, 0)
 	if err != nil {
 		// Возможные ошибки:

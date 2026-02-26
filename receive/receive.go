@@ -3,16 +3,16 @@ package receive
 import (
 	"fmt"
 	"syscall"
-	"redis_driver/parser"
 )
 
-// Читаем ответ
-func Message(socket int) (string, error) {
+// Прочитать ответ сервера
+func Message(socketFd int) ([]byte, error) {
+	// Буфер для чтения
 	buf := make([]byte, 1024) // 8192 как вариант
 
-	n, _, coreFlags, _, err := syscall.Recvmsg(socket, buf, nil, 0)
+	n, _, coreFlags, _, err := syscall.Recvmsg(socketFd, buf, nil, 0)
 	if err != nil {
-		return "", fmt.Errorf("ошибка чтения ответа: %w", err)
+		return nil, fmt.Errorf("ошибка чтения ответа: %w", err)
 	}
 
 	// Проверка флагов ядра
@@ -24,9 +24,7 @@ func Message(socket int) (string, error) {
 	if coreFlags & syscall.MSG_CTRUNC != 0 {
 		fmt.Println("Обрезаны oob-данные")
 	}
-
 	fmt.Println("Прочитано байт: ", n)
-	result := parser.ParseResponse(buf[:n])
 
-	return result, nil
+	return buf[:n], nil
 }

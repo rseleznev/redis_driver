@@ -50,7 +50,7 @@ func ConnectNew(epollFd int) (int, error) {
 		Pad: 0, // узнать, что это
 	}
 
-	// Добавляем запись в interest list
+	// Добавляем событие в interest list
 	err = syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, socketFd, &epollEvent)
 	if err != nil {
 		return 0, fmt.Errorf("ошибка добавления события в epoll: %w", err)
