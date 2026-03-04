@@ -2,78 +2,36 @@ package main
 
 import (
 	"fmt"
-	"syscall"
+	"log"
+	// "sync"
 
-	"redis_driver/epoll"
-	"redis_driver/receive"
-	"redis_driver/send"
-	"redis_driver/socket"
-	"redis_driver/serialization"
+	"redis_driver/driver"
 )
 
-var EpollFd int
-
 func main() {
-	// Создаем epoll
-	epollFd, err := epoll.New()
+	conn, err := driver.NewConn([4]byte{127, 0, 0, 1}, 6379)
 	if err != nil {
-		fmt.Println(err)
-	}
-	EpollFd = epollFd
-
-	// Создаем сокет
-	socketFd, err := socket.ConnectNew(EpollFd)
-	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
-	defer syscall.Close(socketFd) // в конце нужно будет убрать
-	defer syscall.Close(EpollFd) // в конце нужно будет убрать?
+	defer conn.Close()
 
-	test, err := Ping(socketFd)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	test, err := conn.Ping()
 	fmt.Println(test)
-}
 
-// Проверочная команда
-// Работает только в одном потоке
-func Ping(socketFd int) (string, error) {
-	// Проверочная команда
-	pingCommand := []byte{'*', '1', '\r', '\n', '$', '4', '\r', '\n', 'P', 'I', 'N', 'G', '\r', '\n'} // PING
-	
-	// Отправляем команду
-	err := send.Message(socketFd, pingCommand)
-	if err != nil {
-		fmt.Println(err)
-	}
+	// wg := &sync.WaitGroup{}
 
-	// Ждем результат, внутри блокировка!
-	err = epoll.Wait(socketFd, EpollFd)
-	if err != nil {
-		fmt.Println(err)
-	}
+	// wg.Add(2)
 
-	// Читаем ответ
-	data, err := receive.Message(socketFd)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	// Десериализация ответа
-	result := serialization.Decode(data)
-
-	return result, nil
-}
-
-// Заготовка на будущее
-func GetValueByKey(key string) string {
-	return ""
-}
-
-// Заготовка на будущее
-func SetValueForKey(key, value string) string {
-	return ""
+	// for range 2 {
+	// 	go func() {
+	// 		test, err := conn.Ping()
+	// 		if err != nil {
+	// 			fmt.Println(err)
+	// 		}
+	// 		fmt.Println("Горутина main:", test)
+	// 		wg.Done()
+	// 	}()
+	// }
+	// wg.Wait()
 }

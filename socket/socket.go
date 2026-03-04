@@ -5,7 +5,7 @@ import (
 	"syscall"
 )
 
-func ConnectNew(epollFd int) (int, error) {
+func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 	if err != nil {
@@ -36,8 +36,8 @@ func ConnectNew(epollFd int) (int, error) {
 	// Подключение
 	// Адрес другой стороны
 	var addr syscall.SockaddrInet4
-	addr.Port = 6379
-	addr.Addr = [4]byte{127, 0, 0, 1}
+	addr.Port = port
+	addr.Addr = ip
 
 	// Подключение сокета
 	// !Убедиться, что можно не смотреть ошибку
@@ -58,7 +58,7 @@ func ConnectNew(epollFd int) (int, error) {
 	fmt.Println("Добавлено событие в epoll")
 
 	// Ждем результат
-	_, err = syscall.EpollWait(epollFd, []syscall.EpollEvent{epollEvent}, 100) // если за указанный таймаут события не будет, выполнение пойдет дальше
+	_, err = syscall.EpollWait(epollFd, []syscall.EpollEvent{epollEvent}, 50) // если за указанный таймаут события не будет, выполнение пойдет дальше
 	if err != nil {
 		return 0, fmt.Errorf("ошибка ожидания epoll: %w", err)
 	}
