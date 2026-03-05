@@ -2,6 +2,6 @@ package models
 
 type Command struct {
 	Operation string
-	Key []byte
+	SendingData []byte
 	ResultChan chan []byte
 }

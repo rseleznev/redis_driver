@@ -19,7 +19,7 @@ func main() {
 	test, err := conn.Ping()
 	fmt.Println(test)
 
-	// wg := &sync.WaitGroup{}
+	// var wg sync.WaitGroup
 
 	// wg.Add(2)
 

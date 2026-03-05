@@ -104,12 +104,12 @@ func (c *Conn) Polling() {
 
 		// Проверяем новые команды без блокировки
 		select {
-		case cmd := <- c.commandsChan:
+		case cmd := <-c.commandsChan:
 			// Новая команда на исполнение
 
 			if cmd.Operation == "TEST" {
 				// Отправляем команду
-				err := send.Message(c.socketFd, cmd.Key)
+				err := send.Message(c.socketFd, cmd.SendingData)
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -124,11 +124,15 @@ func (c *Conn) Polling() {
 // Ping отправляет тестовую команду для проверки соединения
 func (c *Conn) Ping() (string, error) {
 	// Проверочная команда
-	pingCommand := []byte{'*', '1', '\r', '\n', '$', '4', '\r', '\n', 'P', 'I', 'N', 'G', '\r', '\n'} // PING
+	// pingCommand := []byte{'*', '1', '\r', '\n', '$', '4', '\r', '\n', 'P', 'I', 'N', 'G', '\r', '\n'} // PING
+	pingCommand := []byte{
+		'*', '2', '\r', '\n',
+		'$', '5', '\r', '\n', 'H', 'E', 'L', 'L', 'O', '\r', '\n', // HELLO
+		'$', '1', '\r', '\n', '3', '\r', '\n',} // 3
 
 	cmd := models.Command{
 		Operation: "TEST",
-		Key: pingCommand,
+		SendingData: pingCommand,
 		ResultChan: make(chan []byte),
 	}
 

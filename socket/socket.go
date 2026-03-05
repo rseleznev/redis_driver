@@ -33,6 +33,8 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 
 	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1) // отключаем задержки
 
+	// Настройки буферов
+
 	// Подключение
 	// Адрес другой стороны
 	var addr syscall.SockaddrInet4
