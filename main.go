@@ -5,7 +5,7 @@ import (
 	"log"
 	// "sync"
 
-	"redis_driver/driver"
+	"github.com/rseleznev/redis_driver/driver"
 )
 
 func main() {
@@ -18,6 +18,8 @@ func main() {
 
 	test, err := conn.Ping()
 	fmt.Println(test)
+
+	conn.Hello3()
 
 	// var wg sync.WaitGroup
 

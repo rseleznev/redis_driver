@@ -38,8 +38,8 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 	// Подключение
 	// Адрес другой стороны
 	var addr syscall.SockaddrInet4
-	addr.Port = port
-	addr.Addr = ip
+	addr.Port = port // нужно будет сделать валидацию
+	addr.Addr = ip // нужно будет сделать валидацию
 
 	// Подключение сокета
 	// !Убедиться, что можно не смотреть ошибку

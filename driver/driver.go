@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"syscall"
 
-	"redis_driver/send"
-	"redis_driver/epoll"
-	"redis_driver/models"
-	"redis_driver/socket"
-	"redis_driver/receive"
-	"redis_driver/serialization"
+	"github.com/rseleznev/redis_driver/send"
+	"github.com/rseleznev/redis_driver/epoll"
+	"github.com/rseleznev/redis_driver/models"
+	"github.com/rseleznev/redis_driver/socket"
+	"github.com/rseleznev/redis_driver/receive"
+	"github.com/rseleznev/redis_driver/serialization"
 )
 
 type Conn struct {
@@ -71,11 +71,12 @@ func (c *Conn) Close() {
 
 // Polling обрабатывает события и команды в бесконечном цикле
 func (c *Conn) Polling() {
-	// Очередь команд
-	var cmdsQueue = make([]models.Command, 0 ,5) // временно
+	// Обрабатываемая команда
+	var currCmd *models.Command // временно
 	
 	// Бесконечный цикл
 	// !также подумать, как правильно завершать при отключении!
+	// !также подумать, в какой момент запускать. Плохо работать без команд и событий
 	for {
 		// Проверяем новые события с таймаутом 0
 		n, err := syscall.EpollWait(c.epollFd, epoll.WaitingEvents, 0)
@@ -96,10 +97,8 @@ func (c *Conn) Polling() {
 			}
 
 			// Записываем в тот канал, где ждет инициирующий поток
-			for _, v := range cmdsQueue {
-				v.ResultChan <- data // !разобраться, как распределять результаты между несколькими командами!
-			}
-			cmdsQueue = cmdsQueue[:0] // очищаем очередь команд
+			currCmd.ResultChan <- data // !разобраться, как распределять результаты между несколькими командами!
+			currCmd = nil // готовы брать след команду
 		}
 
 		// Проверяем новые команды без блокировки
@@ -113,7 +112,7 @@ func (c *Conn) Polling() {
 				if err != nil {
 					fmt.Println(err)
 				}
-				cmdsQueue = append(cmdsQueue, cmd) // !тут нужно подумать, как быть с несколькими разными командами!
+				currCmd = &cmd // !тут нужно подумать, как быть с несколькими разными командами!
 			}
 		default:
 			continue
@@ -124,11 +123,7 @@ func (c *Conn) Polling() {
 // Ping отправляет тестовую команду для проверки соединения
 func (c *Conn) Ping() (string, error) {
 	// Проверочная команда
-	// pingCommand := []byte{'*', '1', '\r', '\n', '$', '4', '\r', '\n', 'P', 'I', 'N', 'G', '\r', '\n'} // PING
-	pingCommand := []byte{
-		'*', '2', '\r', '\n',
-		'$', '5', '\r', '\n', 'H', 'E', 'L', 'L', 'O', '\r', '\n', // HELLO
-		'$', '1', '\r', '\n', '3', '\r', '\n',} // 3
+	pingCommand := []byte{'*', '1', '\r', '\n', '$', '4', '\r', '\n', 'P', 'I', 'N', 'G', '\r', '\n'} // PING
 
 	cmd := models.Command{
 		Operation: "TEST",
@@ -144,7 +139,31 @@ func (c *Conn) Ping() (string, error) {
 	// Десериализация ответа
 	result := serialization.Decode(data)
 
-	return result, nil
+	return result.(string), nil
+}
+
+// Hello3 проверяет соединение и включает протокол RESP3
+func (c *Conn) Hello3() error {
+	helloCommand := []byte{
+		'*', '2', '\r', '\n',
+		'$', '5', '\r', '\n', 'H', 'E', 'L', 'L', 'O', '\r', '\n', // HELLO
+		'$', '1', '\r', '\n', '3', '\r', '\n',} // 3
+
+	cmd := models.Command{
+		Operation: "TEST",
+		SendingData: helloCommand,
+		ResultChan: make(chan []byte),
+	}
+
+	c.commandsChan <- cmd // блокировка, пока Polling не заберет команду
+
+	// Блокируемся и ждем результат
+	data := <-cmd.ResultChan
+
+	// Десериализация ответа
+	_ = serialization.Decode(data)
+	
+	return nil
 }
 
 // SetValueForKey устанавливает указанное значение value для указанного ключа key с длительностью хранения durr

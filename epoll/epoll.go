@@ -20,6 +20,7 @@ func New() (int, error) {
 var WaitingEvents = make([]syscall.EpollEvent, 1)
 
 // AddIncomeEvent добавляет событие EPOLLIN в interest list указанного epollFd для socketFd
+// Возможно EPOLLOUT тоже нужно?
 func AddIncomeEvent(socketFd, epollFd int) error {
 	// Создаем событие
 	epollEvent := syscall.EpollEvent{
@@ -51,11 +52,17 @@ func ProcessEvent(socketFd int, event syscall.EpollEvent) error {
 		return fmt.Errorf("ошибка в GetsockoptInt: %w", err)
 	}
 	// Проверяем полученное событие
-	if event.Events & syscall.EPOLLIN != 0 {
+	if event.Events & syscall.EPOLLIN != 0 { // входящее сообщение
 		fmt.Println("Пришло событие EPOLLIN!")
 	}
-	if event.Events & syscall.EPOLLERR != 0 {
+	if event.Events & syscall.EPOLLERR != 0 { // ошибка
 		fmt.Println("Пришло событие EPOLLERR!")
+	}
+	if event.Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
+		fmt.Println("Пришло событие EPOLLHUP!")
+	}
+	if event.Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
+		fmt.Println("Пришло событие EPOLLRDHUP!")
 	}
 	
 	return nil
