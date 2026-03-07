@@ -21,6 +21,7 @@ type Conn struct {
 	// настройки таймаутов
 	// размер буферов
 
+	workInProcess bool // есть ли ждущие потоки
 	commandsChan chan models.Command // канал для входящих команд приложения
 }
 
@@ -78,44 +79,46 @@ func (c *Conn) Polling() {
 	// !также подумать, как правильно завершать при отключении!
 	// !также подумать, в какой момент запускать. Плохо работать без команд и событий
 	for {
-		// Проверяем новые события с таймаутом 0
-		n, err := syscall.EpollWait(c.epollFd, epoll.WaitingEvents, 0)
-		if err != nil {
-			fmt.Println("ошибка ожидания epoll: ", err)
-		}
-		if n > 0 { // Пришли какие-то события
-			// Проверки
-			err = epoll.ProcessEvent(c.socketFd, epoll.WaitingEvents[0])
+		if c.workInProcess == true {
+			// Проверяем новые события с таймаутом 0
+			n, err := syscall.EpollWait(c.epollFd, epoll.WaitingEvents, 0)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println("ошибка ожидания epoll: ", err)
 			}
-
-			// Читаем ответ
-			data, err := receive.Message(c.socketFd)
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			// Записываем в тот канал, где ждет инициирующий поток
-			currCmd.ResultChan <- data // !разобраться, как распределять результаты между несколькими командами!
-			currCmd = nil // готовы брать след команду
-		}
-
-		// Проверяем новые команды без блокировки
-		select {
-		case cmd := <-c.commandsChan:
-			// Новая команда на исполнение
-
-			if cmd.Operation == "TEST" {
-				// Отправляем команду
-				err := send.Message(c.socketFd, cmd.SendingData)
+			if n > 0 { // Пришли какие-то события
+				// Проверки
+				err = epoll.ProcessEvent(c.socketFd, epoll.WaitingEvents[0])
 				if err != nil {
 					fmt.Println(err)
 				}
-				currCmd = &cmd // !тут нужно подумать, как быть с несколькими разными командами!
+
+				// Читаем ответ
+				data, err := receive.Message(c.socketFd)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				// Записываем в тот канал, где ждет инициирующий поток
+				currCmd.ResultChan <- data // !разобраться, как распределять результаты между несколькими командами!
+				currCmd = nil // готовы брать след команду
 			}
-		default:
-			continue
+
+			// Проверяем новые команды без блокировки
+			select {
+			case cmd := <-c.commandsChan:
+				// Новая команда на исполнение
+
+				if cmd.Operation == "TEST" {
+					// Отправляем команду
+					err := send.Message(c.socketFd, cmd.SendingData)
+					if err != nil {
+						fmt.Println(err)
+					}
+					currCmd = &cmd // !тут нужно подумать, как быть с несколькими разными командами!
+				}
+			default:
+				continue
+			}	
 		}
 	}
 }
@@ -131,10 +134,12 @@ func (c *Conn) Ping() (string, error) {
 		ResultChan: make(chan []byte),
 	}
 
+	c.workInProcess = true
 	c.commandsChan <- cmd // блокировка, пока Polling не заберет команду
 
 	// Блокируемся и ждем результат
 	data := <- cmd.ResultChan
+	c.workInProcess = false
 
 	// Десериализация ответа
 	result := serialization.Decode(data)
@@ -143,7 +148,7 @@ func (c *Conn) Ping() (string, error) {
 }
 
 // Hello3 проверяет соединение и включает протокол RESP3
-func (c *Conn) Hello3() error {
+func (c *Conn) Hello3() (map[string]string, error) {
 	helloCommand := []byte{
 		'*', '2', '\r', '\n',
 		'$', '5', '\r', '\n', 'H', 'E', 'L', 'L', 'O', '\r', '\n', // HELLO
@@ -155,15 +160,17 @@ func (c *Conn) Hello3() error {
 		ResultChan: make(chan []byte),
 	}
 
+	c.workInProcess = true
 	c.commandsChan <- cmd // блокировка, пока Polling не заберет команду
 
 	// Блокируемся и ждем результат
 	data := <-cmd.ResultChan
+	c.workInProcess = false
 
 	// Десериализация ответа
-	_ = serialization.Decode(data)
+	result := serialization.Decode(data)
 	
-	return nil
+	return result.(map[string]string), nil
 }
 
 // SetValueForKey устанавливает указанное значение value для указанного ключа key с длительностью хранения durr

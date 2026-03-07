@@ -5,3 +5,15 @@ type Command struct {
 	SendingData []byte
 	ResultChan chan []byte
 }
+
+type ParsedPesponse struct {
+	MainType string
+	TotalLen int
+	Data []ParsedResponsePart
+}
+
+type ParsedResponsePart struct {
+	PartType string
+	Len int
+	Data []byte
+}
