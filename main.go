@@ -16,17 +16,16 @@ func main() {
 
 	defer conn.Close()
 
-	test, err := conn.Ping()
+	testPing, err := conn.Ping()
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println(test)
+	fmt.Println(testPing)
 
-	testMap, err := conn.Hello3()
+	_, err = conn.Hello3()
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println(testMap)
 
 	// var wg sync.WaitGroup
 

@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/rseleznev/redis_driver/send"
-	"github.com/rseleznev/redis_driver/epoll"
-	"github.com/rseleznev/redis_driver/models"
-	"github.com/rseleznev/redis_driver/socket"
-	"github.com/rseleznev/redis_driver/receive"
-	"github.com/rseleznev/redis_driver/serialization"
+	"github.com/rseleznev/redis_driver/internal/send"
+	"github.com/rseleznev/redis_driver/internal/epoll"
+	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/internal/socket"
+	"github.com/rseleznev/redis_driver/internal/receive"
+	"github.com/rseleznev/redis_driver/internal/message"
 )
 
 type Conn struct {
@@ -21,7 +21,7 @@ type Conn struct {
 	// настройки таймаутов
 	// размер буферов
 
-	workInProcess bool // есть ли ждущие потоки
+	workInProcess bool // есть ли ждущие потоки (временно)
 	commandsChan chan models.Command // канал для входящих команд приложения
 }
 
@@ -141,8 +141,11 @@ func (c *Conn) Ping() (string, error) {
 	data := <- cmd.ResultChan
 	c.workInProcess = false
 
+	// Парсим сообщение
+	parsed := message.Parse(data)
+
 	// Десериализация ответа
-	result := serialization.Decode(data)
+	result := message.Deserialize(parsed)
 
 	return result.(string), nil
 }
@@ -167,8 +170,12 @@ func (c *Conn) Hello3() (map[string]string, error) {
 	data := <-cmd.ResultChan
 	c.workInProcess = false
 
+	// Парсим сообщение
+	parsed := message.Parse(data)
+	fmt.Println(parsed)
+
 	// Десериализация ответа
-	result := serialization.Decode(data)
+	result := message.Decode(data)
 	
 	return result.(map[string]string), nil
 }
