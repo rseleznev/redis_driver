@@ -1,15 +1,17 @@
 package driver
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 	"syscall"
 
-	"github.com/rseleznev/redis_driver/internal/send"
 	"github.com/rseleznev/redis_driver/internal/epoll"
-	"github.com/rseleznev/redis_driver/internal/models"
-	"github.com/rseleznev/redis_driver/internal/socket"
-	"github.com/rseleznev/redis_driver/internal/receive"
 	"github.com/rseleznev/redis_driver/internal/message"
+	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/internal/receive"
+	"github.com/rseleznev/redis_driver/internal/send"
+	"github.com/rseleznev/redis_driver/internal/socket"
 )
 
 type Conn struct {
@@ -17,6 +19,7 @@ type Conn struct {
 	epollFd int
 	redisIp [4]byte // нужно будет брать из конфига
 	redisPort int // нужно будет брать из конфига
+	proto uint8 // версия протокола RESP
 
 	// настройки таймаутов
 	// размер буферов
@@ -108,14 +111,13 @@ func (c *Conn) Polling() {
 			case cmd := <-c.commandsChan:
 				// Новая команда на исполнение
 
-				if cmd.Operation == "TEST" {
-					// Отправляем команду
-					err := send.Message(c.socketFd, cmd.SendingData)
-					if err != nil {
-						fmt.Println(err)
-					}
-					currCmd = &cmd // !тут нужно подумать, как быть с несколькими разными командами!
+				// Отправляем команду
+				err := send.Message(c.socketFd, cmd.SendingData)
+				if err != nil {
+					fmt.Println(err)
 				}
+				currCmd = &cmd // !тут нужно подумать, как быть с несколькими разными командами!
+
 			default:
 				continue
 			}	
@@ -145,17 +147,24 @@ func (c *Conn) Ping() (string, error) {
 	parsed := message.Parse(data)
 
 	// Десериализация ответа
-	result := message.Deserialize(parsed)
+	deserialized := message.Deserialize(parsed)
 
-	return result.(string), nil
+	result, ok := deserialized.([]byte)
+	if !ok {
+		return "", errors.New("ошибка преобразования")
+	}
+
+	return string(result), nil
 }
 
 // Hello3 проверяет соединение и включает протокол RESP3
 func (c *Conn) Hello3() (map[string]string, error) {
 	helloCommand := []byte{
 		'*', '2', '\r', '\n',
-		'$', '5', '\r', '\n', 'H', 'E', 'L', 'L', 'O', '\r', '\n', // HELLO
-		'$', '1', '\r', '\n', '3', '\r', '\n',} // 3
+		'$', '5', '\r', '\n',
+		'H', 'E', 'L', 'L', 'O', '\r', '\n', // HELLO
+		'$', '1', '\r', '\n',
+		'3', '\r', '\n',} // 3
 
 	cmd := models.Command{
 		Operation: "TEST",
@@ -175,13 +184,20 @@ func (c *Conn) Hello3() (map[string]string, error) {
 	fmt.Println(parsed)
 
 	// Десериализация ответа
-	result := message.Decode(data)
+	deserialized := message.Deserialize(parsed)
+
+	result, ok := deserialized.(map[string]string)
+	if !ok {
+		return nil, errors.New("ошибка преобразования")
+	}
+	pv, _ := strconv.Atoi(result["proto"])
+	c.proto = uint8(pv)
 	
-	return result.(map[string]string), nil
+	return result, nil
 }
 
-// SetValueForKey устанавливает указанное значение value для указанного ключа key с длительностью хранения durr
-func (c *Conn) SetValueForKey(key, value string, durr int) error {
+// SetValueForKey устанавливает указанное значение value для указанного ключа key с длительностью хранения dur
+func (c *Conn) SetValueForKey(key string, value any, dur int) error {
 	// Формируем команду в формате RESP
 
 	// Отправляем команду на выполнение
@@ -189,4 +205,25 @@ func (c *Conn) SetValueForKey(key, value string, durr int) error {
 	// Блокируемся и ждем результат
 	
 	return nil
+}
+
+func (c *Conn) GetValueByKey(key string) {
+	getCommand := message.SerializeGetCommand(key)
+
+	cmd := models.Command{
+		Operation: "GET",
+		SendingData: getCommand,
+		ResultChan: make(chan []byte),
+	}
+
+	c.workInProcess = true
+	c.commandsChan <- cmd // блокировка, пока Polling не заберет команду
+
+	// Блокируемся и ждем результат
+	data := <-cmd.ResultChan
+	c.workInProcess = false
+
+	for i, v := range data {
+		fmt.Printf("Байт: %q, индекс: %d \n", v, i)
+	}
 }

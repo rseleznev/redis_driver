@@ -22,10 +22,13 @@ func main() {
 	}
 	fmt.Println(testPing)
 
-	_, err = conn.Hello3()
+	testHello, err := conn.Hello3()
 	if err != nil {
 		fmt.Println(err)
 	}
+	fmt.Println(testHello)
+
+	conn.GetValueByKey("d41d8cd98f00b204e9800998ecf8427e")
 
 	// var wg sync.WaitGroup
 
