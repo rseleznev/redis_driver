@@ -6,7 +6,7 @@ type Command struct {
 	ResultChan chan []byte
 }
 
-type ParsedResponsePart struct {
+type DOMPart struct {
 	PartType string // тип элемента
 
 	ContentLen int // кол-во элементов внутри (для составных типов)

@@ -8,8 +8,8 @@ import (
 )
 
 // Parse парсит сырые данные и собирает срез объектов
-func Parse(input []byte) []models.ParsedResponsePart {
-	var result []models.ParsedResponsePart
+func Parse(input []byte) []models.DOMPart {
+	var result []models.DOMPart
 
 	for i := 0; i < len(input); {
 		offset, part := parsePart(i, input)
@@ -23,8 +23,8 @@ func Parse(input []byte) []models.ParsedResponsePart {
 
 // parsePart парсит часть (элемент), принимает начальный индекс и срез, возвращает индекс,
 // на котором остановился и прочитанную часть
-func parsePart(index int, input []byte) (int, models.ParsedResponsePart) {
-	var part models.ParsedResponsePart
+func parsePart(index int, input []byte) (int, models.DOMPart) {
+	var part models.DOMPart
 	var partValue []byte
 
 	switch input[index] {
@@ -107,6 +107,12 @@ func parsePart(index int, input []byte) (int, models.ParsedResponsePart) {
 		index++
 
 		index, part.ValueLen = parsePartLen(index, input)
+
+	case '_': // Nil
+		part.PartType = "null"
+		index += 2
+
+		return index, part
 
 	default:
 		fmt.Println("Неизвестный тип данных")

@@ -28,7 +28,7 @@ func main() {
 	}
 	fmt.Println(testHello)
 
-	conn.GetValueByKey("d41d8cd98f00b204e9800998ecf8427e")
+	conn.SetValueForKey("testing", "ghdfgdfgsdrrrrfdfgfd", 3505)
 
 	// var wg sync.WaitGroup
 

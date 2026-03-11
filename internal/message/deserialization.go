@@ -2,7 +2,7 @@ package message
 
 import "github.com/rseleznev/redis_driver/internal/models"
 
-func Deserialize(input []models.ParsedResponsePart) any {
+func Deserialize(input []models.DOMPart) any {
 	var result any
 
 	if len(input) == 1 {

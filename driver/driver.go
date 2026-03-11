@@ -196,9 +196,12 @@ func (c *Conn) Hello3() (map[string]string, error) {
 	return result, nil
 }
 
-// SetValueForKey устанавливает указанное значение value для указанного ключа key с длительностью хранения dur
-func (c *Conn) SetValueForKey(key string, value any, dur int) error {
-	// Формируем команду в формате RESP
+// SetValueForKey устанавливает указанное значение value для указанного ключа key с длительностью хранения duration
+func (c *Conn) SetValueForKey(key string, value any, duration int) error {
+	data := message.SerializeSetCommand("SET", "test", "fgdfjjjjhhuuhhhhhhhh", 112)
+	for _, v := range data {
+		fmt.Printf("Байт: %q \n", v)
+	}
 
 	// Отправляем команду на выполнение
 
