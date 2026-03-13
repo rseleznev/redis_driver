@@ -6,93 +6,99 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
+// SerializeGetCommand сериализует команду GET в формат RESP
 func SerializeGetCommand(key string) []byte {
-	arrLen := 3 + 16 + len(key)
-	keyLen := len(key)
+	var bytesLen int
+	
+	// Добавляем команду
+	c := buildDOMPart("GET")
+	bytesLen += c.TotalBytesLen
 
-	if keyLen > 9 { // если длина ключа - двузначное число (пока как максимум)
-		arrLen++
+	// Добавляем ключ
+	k := buildDOMPart(key)
+	bytesLen += k.TotalBytesLen
+
+	parts := make([]models.DOMPart, 2)
+	parts[0] = c
+	parts[1] = k
+
+	// Корневой массив
+	arr := models.DOMPart{
+		PartType: "array",
+
+		ContentLen: len(parts),
+		Content: parts,
+
+		TotalBytesLen: bytesLen + (len(parts)*2), // кол-во байтов всего контента + '\r' и '\n' * кол-во элементов (не точно!)
 	}
 
-	result := make([]byte, 0, arrLen)
-
-	fixBytes := []byte{
-		'*', '2', '\r', '\n',
-		'$', '3', '\r', '\n',
-		'G', 'E', 'T', '\r', '\n',
-		'$', '3', '2', '\r', '\n',
-		'd', '4', '1', 'd', '8', 'c', 'd', '9', '8', 'f', '0', '0', 'b', '2', '0', '4', 'e', '9', '8', '0', '0', '9', '9', '8', 'e', 'c', 'f', '8', '4', '2', '7', 'e', '\r', '\n',
-		// d41d8cd98f00b204e9800998ecf8427e
-	}
-	result = append(result, fixBytes...)
-
-	// if keyLen < 9 {
-	// 	result = append(result, byte(keyLen))
-	// } else {
-	// 	fstDg := keyLen / 10
-	// 	sndDg := keyLen % 10
-	// 	result = append(result, byte(fstDg), byte(sndDg))
-	// }
-	// result = append(result, '\r', '\n')
-
-	// for range keyLen {
-	// 	result = append(result, key)
-	// }
-
-	// result = append(result, '\r', '\n')
+	result := serializeDOMToRESP(arr)
 
 	return result
 }
 
-func SerializeSetCommand(command string, key string, value any, dur int) []byte {
+// SerializeSetCommand сериализует команду SET в формат RESP
+func SerializeSetCommand(key string, value any, dur int) []byte {
+	var bytesLen int
+
 	// Добавляем команду
-	fixBytes := []byte{
-		'*', '5', '\r', '\n',
-		'$', '3', '\r', '\n',
-		'S', 'E', 'T', '\r', '\n',
-		// key '\r', '\n',
-		// value '\r', '\n',
-		// 'E', 'X', '\r', '\n',
-		// dur '\r', '\n',
-	}
+	c := buildDOMPart("SET")
+	bytesLen += c.TotalBytesLen
 
 	// Добавляем ключ
-	k := buildDOM(key)
-	kBytes := transformDOMToRESP(k)
+	k := buildDOMPart(key)
+	bytesLen += k.TotalBytesLen
 
 	// Добавляем значение
-	v := buildDOM(value)
-	vBytes := transformDOMToRESP(v)
+	v := buildDOMPart(value)
+	bytesLen += v.TotalBytesLen
 
 	// Добавляем длительность
-	exBytes := []byte{'$', '2', '\r', '\n', 'E', 'X', '\r', '\n'}
-	dr := buildDOM(dur)
-	drBytes := transformDOMToRESP(dr)
+	ex := buildDOMPart("EX")
+	bytesLen += ex.TotalBytesLen
 
-	totalLen := len(fixBytes) + len(kBytes) + len(vBytes) + len(exBytes) + len(drBytes)
-	result := make([]byte, 0, totalLen)
+	durString := strconv.Itoa(dur)
+	dr := buildDOMPart(durString)
+	bytesLen += dr.TotalBytesLen
 
-	result = append(result, fixBytes...)
-	result = append(result, kBytes...)
-	result = append(result, vBytes...)
-	result = append(result, exBytes...)
-	result = append(result, drBytes...)
+	parts := make([]models.DOMPart, 5)
+	parts[0] = c
+	parts[1] = k
+	parts[2] = v
+	parts[3] = ex // не закидывать, если не указано
+	parts[4] = dr // не закидывать, если не указано
+
+	// Корневой массив (команда - всегда массив)
+	arr := models.DOMPart{
+		PartType: "array",
+
+		ContentLen: len(parts),
+		Content: parts,
+
+		TotalBytesLen: bytesLen + (len(parts)*2), // кол-во байтов всего контента + '\r' и '\n' * кол-во элементов (не точно!)
+	}
+
+	// Сериализуем в RESP
+	result := serializeDOMToRESP(arr)
 	
 	return result
 }
 
-func buildDOM(input any) []models.DOMPart {
-	var result []models.DOMPart
+// buildDOMPart переводит тип данных Go в элемент DOM
+// Поддерживаются только: 
+// string, 
+// int, 
+// []byte, 
+// map[string]string
+func buildDOMPart(input any) models.DOMPart {
+	var part models.DOMPart
 
 	switch input := input.(type) {
 	case string:		
-		part := models.DOMPart{
-			PartType: "string",
-			ValueLen: len(input),
-			Value: []byte(input),
-		}
-
-		result = append(result, part)
+		part.PartType = "string"
+		part.ValueLen = len(input)
+		part.Value = []byte(input)
+		part.TotalBytesLen = len(input)
 
 	case int:
 		vl := 1
@@ -102,39 +108,83 @@ func buildDOM(input any) []models.DOMPart {
 		}
 		v := strconv.Itoa(input)
 		
-		part := models.DOMPart{
-			PartType: "int",
-			ValueLen: vl,
-			Value: []byte(v),
-		}
-
-		result = append(result, part)
+		part.PartType = "int"
+		part.ValueLen = vl
+		part.Value = []byte(v)
+		part.TotalBytesLen = vl
 
 	case []byte:
+		part.PartType = "string"
+		part.ValueLen = len(input)
+		part.Value = input
+		part.TotalBytesLen = len(input)
 
 	case map[string]string:
+		// Создает корневой элемент мапы + закидывает ключи и значения через рекурсию
+		part.PartType = "map"
+		part.ContentLen = len(input)
 
+		cntnt := make([]models.DOMPart, 0, part.ContentLen*2)
+		part.Content = cntnt
+
+		var bytesLen int
+
+		for k, v := range input {
+			var keyPart, valuePart models.DOMPart
+
+			// Обрабатываем ключ
+			keyPart.PartType = "string"
+			keyPart.ValueLen = len(k)
+			keyPart.Value = []byte(k)
+			keyPart.TotalBytesLen = len(k)
+
+			bytesLen += keyPart.TotalBytesLen
+			part.Content = append(part.Content, keyPart)
+
+			// Обрабатываем значение
+			valuePart.PartType = "string"
+			valuePart.ValueLen = len(v)
+			valuePart.Value = []byte(v)
+			valuePart.TotalBytesLen = len(v)
+
+			bytesLen += valuePart.TotalBytesLen
+			part.Content = append(part.Content, valuePart)
+		}
+		part.TotalBytesLen = bytesLen
+
+	default:
+		panic("redis_drive: неподдерживаемый тип данных")
 	}
 
-	return result
+	return part
 }
 
-func transformDOMToRESP(input []models.DOMPart) []byte {
-	var result []byte
+// serializeDOMToRESP сериализует корневой DOM в RESP. Предполагается, что на вход поступит корневой DOM-элемент,
+// который содержит весь контент внутри себя
+func serializeDOMToRESP(input models.DOMPart) []byte {
+	result := make([]byte, 0, input.TotalBytesLen)
 	
-	for _, v := range input {
-		b := transformDOMPartToRESP(v)
-		result = append(result, b...)
+	if input.PartType != "array" {
+		panic("некорректный корневой элемент")
+	}
+
+	arrPart := serializeDOMPartToRESP(input)
+	result = append(result, arrPart...)
+
+	for _, v := range input.Content {
+		part := serializeDOMPartToRESP(v)
+		result = append(result, part...)
 	}
 
 	return result
 }
 
-func transformDOMPartToRESP(input models.DOMPart) []byte {
-	var result []byte
+// serializeDOMPartToRESP сериализует отдельный DOM элемент в формат RESP
+func serializeDOMPartToRESP(input models.DOMPart) []byte {
 
 	switch input.PartType {
 	case "string":
+		var result []byte
 		result = append(result, '$')
 
 		vl := input.ValueLen
@@ -154,12 +204,30 @@ func transformDOMPartToRESP(input models.DOMPart) []byte {
 		result = append(result, input.Value...)
 		result = append(result, '\r', '\n')
 
+		return result
+
 	case "int":
+		var result []byte
 		result = append(result, ':')
 		result = append(result, input.Value...)
 		result = append(result, '\r', '\n')
 
-	}
+		return result
 
-	return result
+	case "array":
+		result := make([]byte, 4)
+
+		ls := strconv.Itoa(input.ContentLen)
+		lb := []byte(ls)
+
+		result[0] = '*'
+		result[1] = lb[0]
+		result[2] = '\r'
+		result[3] = '\n'
+
+		return result
+
+	default:
+		return nil
+	}
 }

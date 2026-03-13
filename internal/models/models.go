@@ -9,8 +9,11 @@ type Command struct {
 type DOMPart struct {
 	PartType string // тип элемента
 
-	ContentLen int // кол-во элементов внутри (для составных типов)
-
-	ValueLen int // длина значения (для простых типов)
+	ValueLen int // длина значения в байтах (для простых типов)
 	Value []byte // значение (для простых типов)
+
+	ContentLen int // кол-во элементов внутри (для составных типов)
+	Content []DOMPart // дочерние элементы (для составных типов)
+	
+	TotalBytesLen int // кол-во байтов (для расчета емкости итогового среза)
 }

@@ -181,7 +181,6 @@ func (c *Conn) Hello3() (map[string]string, error) {
 
 	// Парсим сообщение
 	parsed := message.Parse(data)
-	fmt.Println(parsed)
 
 	// Десериализация ответа
 	deserialized := message.Deserialize(parsed)
@@ -198,19 +197,34 @@ func (c *Conn) Hello3() (map[string]string, error) {
 
 // SetValueForKey устанавливает указанное значение value для указанного ключа key с длительностью хранения duration
 func (c *Conn) SetValueForKey(key string, value any, duration int) error {
-	data := message.SerializeSetCommand("SET", "test", "fgdfjjjjhhuuhhhhhhhh", 112)
-	for _, v := range data {
-		fmt.Printf("Байт: %q \n", v)
+	setCommand := message.SerializeSetCommand(key, value, duration)
+
+	cmd := models.Command{
+		Operation: "SET",
+		SendingData: setCommand,
+		ResultChan: make(chan []byte),
 	}
 
-	// Отправляем команду на выполнение
+	c.workInProcess = true
+	c.commandsChan <- cmd // блокировка, пока Polling не заберет команду
 
 	// Блокируемся и ждем результат
+	data := <-cmd.ResultChan
+	c.workInProcess = false
+
+	parsed := message.Parse(data)
+	deserialized := message.Deserialize(parsed)
+
+	result, ok := deserialized.([]byte)
+	if !ok {
+		return errors.New("ошибка преобразования")
+	}
+	fmt.Println(string(result))
 	
 	return nil
 }
 
-func (c *Conn) GetValueByKey(key string) {
+func (c *Conn) GetValueByKey(key string) any {
 	getCommand := message.SerializeGetCommand(key)
 
 	cmd := models.Command{
@@ -226,7 +240,8 @@ func (c *Conn) GetValueByKey(key string) {
 	data := <-cmd.ResultChan
 	c.workInProcess = false
 
-	for i, v := range data {
-		fmt.Printf("Байт: %q, индекс: %d \n", v, i)
-	}
+	parsed := message.Parse(data)
+	deserialized := message.Deserialize(parsed)
+
+	return deserialized
 }

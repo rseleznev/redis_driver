@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	// "sync"
 
 	"github.com/rseleznev/redis_driver/driver"
 )
@@ -28,21 +27,12 @@ func main() {
 	}
 	fmt.Println(testHello)
 
-	conn.SetValueForKey("testing", "ghdfgdfgsdrrrrfdfgfd", 3505)
+	conn.SetValueForKey("test", "ghdfgdfgsdrrrrfdfgfd", 200)
+	v := conn.GetValueByKey("test")
 
-	// var wg sync.WaitGroup
-
-	// wg.Add(2)
-
-	// for range 2 {
-	// 	go func() {
-	// 		test, err := conn.Ping()
-	// 		if err != nil {
-	// 			fmt.Println(err)
-	// 		}
-	// 		fmt.Println("Горутина main:", test)
-	// 		wg.Done()
-	// 	}()
-	// }
-	// wg.Wait()
+	result, ok := v.([]byte)
+	if !ok {
+		fmt.Println("ошибка преобразования")
+	}
+	fmt.Println(string(result))
 }

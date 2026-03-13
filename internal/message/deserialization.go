@@ -2,29 +2,32 @@ package message
 
 import "github.com/rseleznev/redis_driver/internal/models"
 
-func Deserialize(input []models.DOMPart) any {
+// Deserialize десериализует DOM-объект в тип данных Go
+func Deserialize(domObj models.DOMPart) any {
 	var result any
 
-	if len(input) == 1 {
-		result = input[0].Value
-		return result
-	}
+	switch domObj.PartType {
+	case "string":
+		return domObj.Value
 
-	switch input[0].PartType {
 	case "map":
 		m := map[string]string{}
-		index := 1
+		var key, value string
 
-		for range input[0].ContentLen {
-			key := string(input[index].Value)
-			value := string(input[index+1].Value)
-			index += 2
-
+		for _, v := range domObj.Content {
+			if key == "" {
+				key = string(v.Value)
+				continue
+			}
+			value = string(v.Value)
 			m[key] = value
-		}
-		result = m
 
+			key = ""
+			value = ""
+		}
+
+		return m
 	}
-	
+
 	return result
 }

@@ -7,18 +7,21 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-// Parse парсит сырые данные и собирает срез объектов
-func Parse(input []byte) []models.DOMPart {
-	var result []models.DOMPart
+// Parse парсит сырые данные и формирует корневой DOM-объект
+func Parse(input []byte) models.DOMPart {
+	idx, root := parsePart(0, input)
+	idx++
 
-	for i := 0; i < len(input); {
-		offset, part := parsePart(i, input)
-		
-		result = append(result, part)
-		i = offset+1
+	if root.ContentLen > 0 {
+		for range root.ContentLen * 2 {
+			offset, part := parsePart(idx, input)
+			
+			root.Content = append(root.Content, part)
+			idx = offset + 1
+		}	
 	}
 
-	return result
+	return root
 }
 
 // parsePart парсит часть (элемент), принимает начальный индекс и срез, возвращает индекс,
@@ -52,6 +55,8 @@ func parsePart(index int, input []byte) (int, models.DOMPart) {
 		index++
 
 		index, part.ContentLen = parsePartLen(index, input)
+
+		return index, part
 
 	case '$': // Bulk strings
 		part.PartType = "string"
@@ -107,6 +112,7 @@ func parsePart(index int, input []byte) (int, models.DOMPart) {
 		index++
 
 		index, part.ValueLen = parsePartLen(index, input)
+		part.ContentLen = part.ValueLen
 
 	case '_': // Nil
 		part.PartType = "null"
