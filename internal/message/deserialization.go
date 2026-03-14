@@ -7,7 +7,7 @@ func Deserialize(domObj models.DOMPart) any {
 	var result any
 
 	switch domObj.PartType {
-	case "string":
+	case "string", "error":
 		return domObj.Value
 
 	case "map":
@@ -27,6 +27,7 @@ func Deserialize(domObj models.DOMPart) any {
 		}
 
 		return m
+
 	}
 
 	return result

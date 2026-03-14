@@ -120,6 +120,25 @@ func parsePart(index int, input []byte) (int, models.DOMPart) {
 
 		return index, part
 
+	case '-': // Simple Errors
+		part.PartType = "error"
+		index++
+
+		for {
+			if input[index] == '\r' {
+				if input[index+1] == '\n' {
+					index++
+					break
+				}
+			}
+			partValue = append(partValue, input[index])
+			index++
+		}
+		part.ValueLen = len(partValue)
+		part.Value = append(part.Value, partValue...)
+
+		return index, part
+
 	default:
 		fmt.Println("Неизвестный тип данных")
 	}

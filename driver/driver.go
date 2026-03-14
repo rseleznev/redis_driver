@@ -25,7 +25,7 @@ type Conn struct {
 	// размер буферов
 
 	workInProcess bool // есть ли ждущие потоки (временно)
-	commandsChan chan models.Command // канал для входящих команд приложения
+	commandsChan chan models.Command // канал для входящих команд приложения (возможно лучше сделать указателем)
 }
 
 // NewConn создает новое соединение и подключается к нему
@@ -88,7 +88,8 @@ func (c *Conn) Polling() {
 			if err != nil {
 				fmt.Println("ошибка ожидания epoll: ", err)
 			}
-			if n > 0 { // Пришли какие-то события
+			fmt.Println("Sockets n after epoll_wait: ", n)
+			if n > 0 && currCmd != nil { // Пришли какие-то события // !ВРЕМЕННАЯ ЗАПЛАТКА
 				// Проверки
 				err = epoll.ProcessEvent(c.socketFd, epoll.WaitingEvents[0])
 				if err != nil {
@@ -104,6 +105,7 @@ func (c *Conn) Polling() {
 				// Записываем в тот канал, где ждет инициирующий поток
 				currCmd.ResultChan <- data // !разобраться, как распределять результаты между несколькими командами!
 				currCmd = nil // готовы брать след команду
+				fmt.Println("Отдан результат")
 			}
 
 			// Проверяем новые команды без блокировки
@@ -210,6 +212,7 @@ func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 
 	// Блокируемся и ждем результат
 	data := <-cmd.ResultChan
+	fmt.Println("Результат получен")
 	c.workInProcess = false
 
 	parsed := message.Parse(data)

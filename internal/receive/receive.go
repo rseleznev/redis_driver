@@ -2,6 +2,7 @@ package receive
 
 import (
 	"fmt"
+	"errors"
 	"syscall"
 )
 
@@ -23,6 +24,9 @@ func Message(socketFd int) ([]byte, error) {
 	// Доп проверка, не должна срабатывать
 	if coreFlags & syscall.MSG_CTRUNC != 0 {
 		fmt.Println("Обрезаны oob-данные")
+	}
+	if n == 0 {
+		return nil, errors.New("receive: не прочитано ни одного байта")
 	}
 	fmt.Println("Прочитано байт: ", n)
 

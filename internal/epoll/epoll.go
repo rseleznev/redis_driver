@@ -55,6 +55,9 @@ func ProcessEvent(socketFd int, event syscall.EpollEvent) error {
 	if event.Events & syscall.EPOLLIN != 0 { // входящее сообщение
 		fmt.Println("Пришло событие EPOLLIN!")
 	}
+	if event.Events & syscall.EPOLLOUT != 0 {
+		fmt.Println("Пришло событие EPOLLOUT!")
+	}
 	if event.Events & syscall.EPOLLERR != 0 { // ошибка
 		fmt.Println("Пришло событие EPOLLERR!")
 	}

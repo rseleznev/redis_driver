@@ -27,12 +27,17 @@ func main() {
 	}
 	fmt.Println(testHello)
 
-	conn.SetValueForKey("test", "ghdfgdfgsdrrrrfdfgfd", 200)
-	v := conn.GetValueByKey("test")
-
-	result, ok := v.([]byte)
-	if !ok {
-		fmt.Println("ошибка преобразования")
+	m := map[string]string{
+		"test": "1",
+		"hfdhf": "v1",
+		"tettt": "vvvvvvvvvvvvvvv2",
 	}
-	fmt.Println(string(result))
+	conn.SetValueForKey("test", m, 200)
+	// v := conn.GetValueByKey("test")
+
+	// result, ok := v.([]byte)
+	// if !ok {
+	// 	fmt.Println("ошибка преобразования")
+	// }
+	// fmt.Println(string(result))
 }

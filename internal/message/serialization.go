@@ -1,6 +1,7 @@
 package message
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/rseleznev/redis_driver/internal/models"
@@ -87,7 +88,6 @@ func SerializeSetCommand(key string, value any, dur int) []byte {
 // buildDOMPart переводит тип данных Go в элемент DOM
 // Поддерживаются только: 
 // string, 
-// int, 
 // []byte, 
 // map[string]string
 func buildDOMPart(input any) models.DOMPart {
@@ -100,19 +100,6 @@ func buildDOMPart(input any) models.DOMPart {
 		part.Value = []byte(input)
 		part.TotalBytesLen = len(input)
 
-	case int:
-		vl := 1
-
-		if input > 9 && input < 99 {
-			vl = 2
-		}
-		v := strconv.Itoa(input)
-		
-		part.PartType = "int"
-		part.ValueLen = vl
-		part.Value = []byte(v)
-		part.TotalBytesLen = vl
-
 	case []byte:
 		part.PartType = "string"
 		part.ValueLen = len(input)
@@ -120,7 +107,6 @@ func buildDOMPart(input any) models.DOMPart {
 		part.TotalBytesLen = len(input)
 
 	case map[string]string:
-		// Создает корневой элемент мапы + закидывает ключи и значения через рекурсию
 		part.PartType = "map"
 		part.ContentLen = len(input)
 
@@ -153,7 +139,7 @@ func buildDOMPart(input any) models.DOMPart {
 		part.TotalBytesLen = bytesLen
 
 	default:
-		panic("redis_drive: неподдерживаемый тип данных")
+		panic("redis_driver: неподдерживаемый тип данных")
 	}
 
 	return part
@@ -174,6 +160,13 @@ func serializeDOMToRESP(input models.DOMPart) []byte {
 	for _, v := range input.Content {
 		part := serializeDOMPartToRESP(v)
 		result = append(result, part...)
+
+		if v.PartType == "map" {
+			for _, mv := range v.Content {
+				mapPart := serializeDOMPartToRESP(mv)
+				result = append(result, mapPart...)
+			}
+		}
 	}
 
 	return result
@@ -184,7 +177,7 @@ func serializeDOMPartToRESP(input models.DOMPart) []byte {
 
 	switch input.PartType {
 	case "string":
-		var result []byte
+		result := make([]byte, 0, input.ValueLen + 6) // не точный расчет
 		result = append(result, '$')
 
 		vl := input.ValueLen
@@ -206,11 +199,24 @@ func serializeDOMPartToRESP(input models.DOMPart) []byte {
 
 		return result
 
-	case "int":
-		var result []byte
-		result = append(result, ':')
-		result = append(result, input.Value...)
-		result = append(result, '\r', '\n')
+	case "map":
+		result := make([]byte, 0, 4)
+		result = append(result, '%')
+
+		vl := input.ContentLen
+		if vl > 99 {
+			panic("слишком длинная строка!") // заглушка
+		}
+		if vl > 9 {
+			fstDg := vl / 10
+			scndDg := vl % 10
+			fstDgS := strconv.Itoa(fstDg)
+			scndDgS := strconv.Itoa(scndDg)
+			result = append(result, fstDgS[0], scndDgS[0], '\r', '\n')
+		} else {
+			vls := strconv.Itoa(vl)
+			result = append(result, vls[0], '\r', '\n')
+		}
 
 		return result
 
@@ -228,6 +234,7 @@ func serializeDOMPartToRESP(input models.DOMPart) []byte {
 		return result
 
 	default:
+		fmt.Println("Сериализация неподдерживаемого типа: ", input.PartType)
 		return nil
 	}
 }
