@@ -1,8 +1,13 @@
 package socket
 
 import (
+	"errors"
 	"fmt"
 	"syscall"
+)
+
+var (
+	ErrSocketClosed = errors.New("redis_driver: socket closed")
 )
 
 func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {

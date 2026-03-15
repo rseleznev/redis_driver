@@ -2,8 +2,9 @@ package receive
 
 import (
 	"fmt"
-	"errors"
 	"syscall"
+
+	"github.com/rseleznev/redis_driver/internal/socket"
 )
 
 // Прочитать ответ сервера
@@ -26,7 +27,7 @@ func Message(socketFd int) ([]byte, error) {
 		fmt.Println("Обрезаны oob-данные")
 	}
 	if n == 0 {
-		return nil, errors.New("receive: не прочитано ни одного байта")
+		return nil, socket.ErrSocketClosed
 	}
 	fmt.Println("Прочитано байт: ", n)
 
