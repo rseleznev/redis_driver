@@ -15,24 +15,22 @@ func main() {
 
 	defer conn.Close()
 
+	// Ping
 	testPing, err := conn.Ping()
 	if err != nil {
 		fmt.Println(err)
 	}
 	fmt.Println(testPing)
 
-	testHello, err := conn.Hello3()
+	// Hello
+	err = conn.Hello3()
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println(testHello)
 
-	// m := map[string]string{
-	// 	"test": "1",
-	// 	"hfdhf": "v1",
-	// 	"tettt": "vvvvvvvvvvvvvvv2",
-	// }
+	// Set
 	conn.SetValueForKey("test", "value", 200)
+	// Get
 	v := conn.GetValueByKey("test")
 
 	result, ok := v.([]byte)
@@ -40,4 +38,13 @@ func main() {
 		fmt.Println("ошибка преобразования")
 	}
 	fmt.Println(string(result))
+
+	// // Incorrect command
+	// conn.IncorrectTestCommand()
+	// Ping
+	testPing, err = conn.Ping()
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(testPing)
 }

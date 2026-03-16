@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"syscall"
+
+	"github.com/rseleznev/redis_driver/internal/epoll"
 )
 
 var (
@@ -50,39 +52,17 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 	// !Убедиться, что можно не смотреть ошибку
 	syscall.Connect(socketFd, &addr) // результат ловим через epoll
 
-	// Создаем событие
-	epollEvent := syscall.EpollEvent{
-		Events: syscall.EPOLLOUT,
-		Fd: int32(socketFd),
-		Pad: 0, // узнать, что это
-	}
-
-	// Добавляем событие в interest list
-	err = syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, socketFd, &epollEvent)
-	if err != nil {
-		return 0, fmt.Errorf("ошибка добавления события в epoll: %w", err)
-	}
-	fmt.Println("Добавлено событие в epoll")
+	// Добавляем в epoll входящие и исходящие события
+	err = epoll.AddEvents(socketFd, epollFd)
 
 	// Ждем результат
-	_, err = syscall.EpollWait(epollFd, []syscall.EpollEvent{epollEvent}, 50) // если за указанный таймаут события не будет, выполнение пойдет дальше
-	if err != nil {
-		return 0, fmt.Errorf("ошибка ожидания epoll: %w", err)
-	}
+	epoll.Wait()
 
-	// Проверяем ошибку в сокете
-	_, err = syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
+	// Проверка события
+	err = epoll.ProcessEvent(socketFd)
 	if err != nil {
-		fmt.Println("Ошибка в GetsockoptInt: ", err)
+		return 0, err
 	}
-	// Проверяем полученное событие
-	if epollEvent.Events & syscall.EPOLLOUT != 0 {
-		fmt.Println("Пришло событие EPOLLOUT!")
-	}
-	if epollEvent.Events & syscall.EPOLLERR != 0 {
-		fmt.Println("Пришло событие EPOLLERR!")
-	}
-
 	fmt.Println("Сокет подключен!")
 
 	return socketFd, nil

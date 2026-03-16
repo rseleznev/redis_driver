@@ -5,32 +5,43 @@ import (
 	"syscall"
 )
 
+// События, которые хотим отслеживать
+var WaitingEvents = make([]syscall.EpollEvent, 1)
+var epollFd int
+
 // New создает новый инстанс epoll
 func New() (int, error) {
-	epollFd, err := syscall.EpollCreate(1)
+	eFd, err := syscall.EpollCreate(1)
 	if err != nil {
 		return 0, fmt.Errorf("ошибка создания epoll: %w", err)
 	}
 	fmt.Println("epoll создан")
-	return epollFd, nil
+	epollFd = eFd
+	return eFd, nil
 }
 
-// Срез событий, которые хотим отслеживать. По факту только EPOLLIN
-// завязано на конкретный сокет
-var WaitingEvents = make([]syscall.EpollEvent, 1)
+func Wait() {
+	for {
+		n, err := syscall.EpollWait(epollFd, WaitingEvents, 0)
+		if err != nil {
+			fmt.Println("ошибка ожидания epoll: ", err)
+		}
+		if n > 0 { // Пришли какие-то события
+			break
+		}
+	}
+}
 
-// AddIncomeEvent добавляет событие EPOLLIN в interest list указанного epollFd для socketFd
-// Возможно EPOLLOUT тоже нужно?
-func AddIncomeEvent(socketFd, epollFd int) error {
+func AddEvents(socketFd, epollFd int) error {
 	// Создаем событие
 	epollEvent := syscall.EpollEvent{
-		Events: syscall.EPOLLIN,
+		Events: syscall.EPOLLIN | syscall.EPOLLOUT,
 		Fd: int32(socketFd),
 		Pad: 0, // узнать, что это
 	}
 
 	// Добавляем событие в interest list
-	err := syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_MOD, socketFd, &epollEvent)
+	err := syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, socketFd, &epollEvent)
 	if err != nil {
 		return fmt.Errorf("ошибка добавления события в epoll: %w", err)
 	}
@@ -43,7 +54,7 @@ func AddIncomeEvent(socketFd, epollFd int) error {
 
 // ProcessEvent проверяет пришедшее событие и сокет
 // возможно лучше вынести в отдельный пакет проверок
-func ProcessEvent(socketFd int, event syscall.EpollEvent) error {
+func ProcessEvent(socketFd int) error {
 	// тут нужно получше сделать проверки!
 	
 	// Проверяем ошибку в сокете
@@ -52,19 +63,19 @@ func ProcessEvent(socketFd int, event syscall.EpollEvent) error {
 		return fmt.Errorf("ошибка в GetsockoptInt: %w", err)
 	}
 	// Проверяем полученное событие
-	if event.Events & syscall.EPOLLIN != 0 { // входящее сообщение
+	if WaitingEvents[0].Events & syscall.EPOLLIN != 0 { // входящее сообщение
 		fmt.Println("Пришло событие EPOLLIN!")
 	}
-	if event.Events & syscall.EPOLLOUT != 0 {
+	if WaitingEvents[0].Events & syscall.EPOLLOUT != 0 {
 		fmt.Println("Пришло событие EPOLLOUT!")
 	}
-	if event.Events & syscall.EPOLLERR != 0 { // ошибка
+	if WaitingEvents[0].Events & syscall.EPOLLERR != 0 { // ошибка
 		fmt.Println("Пришло событие EPOLLERR!")
 	}
-	if event.Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
+	if WaitingEvents[0].Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
 		fmt.Println("Пришло событие EPOLLHUP!")
 	}
-	if event.Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
+	if WaitingEvents[0].Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
 		fmt.Println("Пришло событие EPOLLRDHUP!")
 	}
 	
