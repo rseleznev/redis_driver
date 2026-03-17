@@ -152,7 +152,16 @@ func (c *Conn) IncorrectTestCommand() {
 	// Блокируемся и ждем результат
 	data := <-cmd.ResultChan
 
-	for _, v := range data {
-		fmt.Printf("Байт: %q \n", v)
+	// Парсим сообщение
+	parsed := message.Parse(data)
+
+	// Десериализация ответа
+	deserialized := message.Deserialize(parsed)
+
+	result, ok := deserialized.([]byte)
+	if !ok {
+		fmt.Println("ошибка преобразования")
+		return
 	}
+	fmt.Println(string(result))
 }

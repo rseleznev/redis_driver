@@ -1,17 +1,13 @@
 package socket
 
 import (
-	"errors"
 	"fmt"
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/epoll"
 )
 
-var (
-	ErrSocketClosed = errors.New("redis_driver: socket closed")
-)
-
+// ConnectNew создает и подключает новый сокет
 func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
@@ -43,7 +39,7 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 	// Настройки буферов
 
 	// Подключение
-	// Адрес другой стороны
+	// Адрес сервера
 	var addr syscall.SockaddrInet4
 	addr.Port = port // нужно будет сделать валидацию
 	addr.Addr = ip // нужно будет сделать валидацию

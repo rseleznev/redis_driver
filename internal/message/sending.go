@@ -12,6 +12,7 @@ var (
 	ErrMsgSndTrunc = errors.New("redis_driver: sended message truncated")
 )
 
+// Send отправляет данные по указанному 
 func Send(socket int, data []byte) error {
 	var err error
 	
@@ -32,6 +33,7 @@ func Send(socket int, data []byte) error {
 	return err
 }
 
+// trySend делает одну попытку отправить данные и выполняет проверки, если данные отправлены
 func trySend(socket int, data []byte) error {
 	// Системный вызов для отправки
 	n, err := syscall.SendmsgN(socket, data, nil, nil, 0)

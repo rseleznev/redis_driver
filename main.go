@@ -39,8 +39,8 @@ func main() {
 	}
 	fmt.Println(string(result))
 
-	// // Incorrect command
-	// conn.IncorrectTestCommand()
+	// Incorrect command
+	conn.IncorrectTestCommand()
 	// Ping
 	testPing, err = conn.Ping()
 	if err != nil {

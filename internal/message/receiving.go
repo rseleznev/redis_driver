@@ -6,27 +6,27 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/epoll"
-	"github.com/rseleznev/redis_driver/internal/socket"
 )
 
 var (
 	ErrMsgRcvTrunc = errors.New("redis_driver: received message truncated")
 	ErrMsgRcvCTrunc = errors.New("redis_driver: received oob-message truncated")
-	ErrConnClosed = errors.New("redis_driver: conn is closed by server")
+	ErrConnClosed = errors.New("redis_driver: connection is closed by server")
 )
 
-func Receive(socketFd int) ([]byte, error) {
+// Receive получает сообщение по указанному socket
+func Receive(socket int) ([]byte, error) {
 	var result []byte
 	var err error
 
 	for {
-		result, err = tryReceive(socketFd)
+		result, err = tryReceive(socket)
 		if err != nil {
 			if errors.Is(err, syscall.EWOULDBLOCK) {
 				epoll.Wait()
 				continue
 			}
-			if errors.Is(err, socket.ErrSocketClosed) {
+			if errors.Is(err, ErrConnClosed) {
 				return nil, ErrConnClosed
 			}
 			// также надо проверять ErrMsgRcvTrunc и ErrMsgRcvCTrunc
@@ -35,7 +35,7 @@ func Receive(socketFd int) ([]byte, error) {
 	}
 	
 	// Проверки
-	err = epoll.ProcessEvent(socketFd)
+	err = epoll.ProcessEvent(socket)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -44,36 +44,32 @@ func Receive(socketFd int) ([]byte, error) {
 	return result, err
 }
 
-// Прочитать ответ сервера
-func tryReceive(socketFd int) ([]byte, error) {
+// tryReceive делает одну попытку прочитать ответ сервера
+// и выполняет проверки, если ответ есть
+func tryReceive(socket int) ([]byte, error) {
 	// Буфер для чтения
 	buf := make([]byte, 1024) // 8192 как вариант
 
-	n, _, coreFlags, _, err := syscall.Recvmsg(socketFd, buf, nil, 0)
+	// Читаем ответ
+	n, _, coreFlags, _, err := syscall.Recvmsg(socket, buf, nil, 0)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка чтения ответа: %w", err)
 	}
 
-	err = check(coreFlags)
+	// Проверяем флаги ядра
+	if coreFlags & syscall.MSG_TRUNC != 0 {
+		return nil, ErrMsgRcvTrunc
+	}
+	// Доп проверка, не должна срабатывать
+	if coreFlags & syscall.MSG_CTRUNC != 0 {
+		return nil, ErrMsgRcvCTrunc
+	}
 	
 	// Соединение закрыто сервером
 	if n == 0 {
-		return nil, socket.ErrSocketClosed
+		return nil, ErrConnClosed
 	}
 	fmt.Println("Прочитано байт: ", n)
 
 	return buf[:n], nil
-}
-
-// Проверка флагов ядра
-func check(flags int) error {
-	// В буфер влезло не все
-	if flags & syscall.MSG_TRUNC != 0 {
-		return ErrMsgRcvTrunc
-	}
-	// Доп проверка, не должна срабатывать
-	if flags & syscall.MSG_CTRUNC != 0 {
-		return ErrMsgRcvCTrunc
-	}
-	return nil
 }

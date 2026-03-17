@@ -11,6 +11,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/socket"
 )
 
+// Conn представляет собой одно соединение с сервером
 type Conn struct {
 	socketFd int
 	epollFd int
@@ -62,8 +63,11 @@ func (c *Conn) Close() {
 	close(c.commandsChan)
 }
 
+// Process принимает команды от потоков, централизованно отправляет их
+// и возвращает результат ждущему потоку
 func (c *Conn) Process() {
 	for cmd := range c.commandsChan {
+		fmt.Println("Socket fd: ", c.socketFd)
 		// Отправляем команду
 		err := message.Send(c.socketFd, cmd.SendingData)
 		if err != nil {
@@ -74,21 +78,16 @@ func (c *Conn) Process() {
 		data, err := message.Receive(c.socketFd)
 		if err != nil {
 			if errors.Is(err, message.ErrConnClosed) {
-				c.reconnect()
+				fmt.Println("conn closed")
+				newSocket, err := socket.ConnectNew(c.redisIp, c.redisPort, c.epollFd)
+				if err != nil {
+					fmt.Println(err)
+				}
+				c.socketFd = newSocket
+				fmt.Println("Socket fd: ", c.socketFd)
 			}
 		}
 		// Возвращаем результат ждущей горутине
 		cmd.ResultChan <- data
 	}
-}
-
-func (c *Conn) reconnect() {
-	// Создаем и подключаем новый сокет
-	nSockFd, err := socket.ConnectNew(c.redisIp, c.redisPort, c.epollFd)
-	if err != nil {
-		fmt.Println(err)
-		panic("redis_driver: неудалось переподключиться")
-	}
-
-	c.socketFd = nSockFd
 }

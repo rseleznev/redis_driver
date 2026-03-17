@@ -32,6 +32,7 @@ func Wait() {
 	}
 }
 
+// AddEvents добавляет события EPOLLIN и EPOLLOUT для отслеживания
 func AddEvents(socketFd, epollFd int) error {
 	// Создаем событие
 	epollEvent := syscall.EpollEvent{
@@ -39,6 +40,7 @@ func AddEvents(socketFd, epollFd int) error {
 		Fd: int32(socketFd),
 		Pad: 0, // узнать, что это
 	}
+	fmt.Println("new epollEvent: ", epollEvent)
 
 	// Добавляем событие в interest list
 	err := syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, socketFd, &epollEvent)
@@ -56,6 +58,7 @@ func AddEvents(socketFd, epollFd int) error {
 // возможно лучше вынести в отдельный пакет проверок
 func ProcessEvent(socketFd int) error {
 	// тут нужно получше сделать проверки!
+	fmt.Println("WaitingEvents: ", WaitingEvents) // разобраться, почему видим старый сокет, а не новый
 	
 	// Проверяем ошибку в сокете
 	_, err := syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
@@ -64,19 +67,19 @@ func ProcessEvent(socketFd int) error {
 	}
 	// Проверяем полученное событие
 	if WaitingEvents[0].Events & syscall.EPOLLIN != 0 { // входящее сообщение
-		fmt.Println("Пришло событие EPOLLIN!")
+		fmt.Println("Пришло событие EPOLLIN!", WaitingEvents)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLOUT != 0 {
-		fmt.Println("Пришло событие EPOLLOUT!")
+		fmt.Println("Пришло событие EPOLLOUT!", WaitingEvents)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLERR != 0 { // ошибка
-		fmt.Println("Пришло событие EPOLLERR!")
+		fmt.Println("Пришло событие EPOLLERR!", WaitingEvents)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
-		fmt.Println("Пришло событие EPOLLHUP!")
+		fmt.Println("Пришло событие EPOLLHUP!", WaitingEvents)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
-		fmt.Println("Пришло событие EPOLLRDHUP!")
+		fmt.Println("Пришло событие EPOLLRDHUP!", WaitingEvents)
 	}
 	
 	return nil
