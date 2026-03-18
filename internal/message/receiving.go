@@ -39,7 +39,6 @@ func Receive(socket int) ([]byte, error) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("Успешно получено")
 
 	return result, err
 }

@@ -28,7 +28,6 @@ func Send(socket int, data []byte) error {
 		}
 		break
 	}
-	fmt.Println("Успешно отправлено")
 
 	return err
 }

@@ -9,6 +9,10 @@ import (
 
 // Parse парсит сырые данные и формирует корневой DOM-объект
 func Parse(input []byte) models.DOMPart {
+	if len(input) == 0 {
+		return models.DOMPart{}
+	}
+	
 	idx, root := parsePart(0, input)
 	idx++
 

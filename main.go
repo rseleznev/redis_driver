@@ -28,23 +28,22 @@ func main() {
 		fmt.Println(err)
 	}
 
+	conn.IncorrectTestCommand()
+
+	// Hello
+	err = conn.Hello3()
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	// Set
 	conn.SetValueForKey("test", "value", 200)
 	// Get
-	v := conn.GetValueByKey("test")
+	v := conn.GetValueByKey("d41d8cd98f00b204e9800998ecf8427e")
 
 	result, ok := v.([]byte)
 	if !ok {
 		fmt.Println("ошибка преобразования")
 	}
 	fmt.Println(string(result))
-
-	// Incorrect command
-	conn.IncorrectTestCommand()
-	// Ping
-	testPing, err = conn.Ping()
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(testPing)
 }

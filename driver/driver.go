@@ -67,25 +67,38 @@ func (c *Conn) Close() {
 // и возвращает результат ждущему потоку
 func (c *Conn) Process() {
 	for cmd := range c.commandsChan {
-		fmt.Println("Socket fd: ", c.socketFd)
-		// Отправляем команду
-		err := message.Send(c.socketFd, cmd.SendingData)
-		if err != nil {
-			fmt.Println(err)
-		}
+		var data []byte
 
-		// Читаем ответ
-		data, err := message.Receive(c.socketFd)
-		if err != nil {
-			if errors.Is(err, message.ErrConnClosed) {
-				fmt.Println("conn closed")
-				newSocket, err := socket.ConnectNew(c.redisIp, c.redisPort, c.epollFd)
-				if err != nil {
-					fmt.Println(err)
-				}
-				c.socketFd = newSocket
-				fmt.Println("Socket fd: ", c.socketFd)
+		for {
+			// Отправляем команду
+			err := message.Send(c.socketFd, cmd.SendingData)
+			if err != nil {
+				fmt.Println(err)
 			}
+
+			// Читаем ответ
+			data, err = message.Receive(c.socketFd)
+			if err != nil {
+				if errors.Is(err, message.ErrConnClosed) {
+
+					// Удаляем события закрытого сокета из списка отслеживания
+					err = epoll.DeleteEventsForSocket(c.socketFd)
+					if err != nil {
+						fmt.Println(err)
+					}
+
+					// Создаем и подключаем новый сокет
+					newSocket, err := socket.ConnectNew(c.redisIp, c.redisPort, c.epollFd)
+					if err != nil {
+						fmt.Println(err)
+					}
+					c.socketFd = newSocket
+
+					// Повторяем цикл
+					continue
+				}	
+			}
+			break
 		}
 		// Возвращаем результат ждущей горутине
 		cmd.ResultChan <- data
