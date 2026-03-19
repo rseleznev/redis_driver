@@ -13,15 +13,18 @@ var (
 	ErrTooManyFilesInProcess = errors.New("redis_driver: per-process limit of open file descriptors has been reached")
 	ErrTooManyFilesInSystem = errors.New("redis_driver: system-wide limit of open file descriptors has been reached")
 	ErrSocketNoMemory = errors.New("redis_driver: not enought memory available")
+	ErrSocketLocalPortInUse = errors.New("redis_driver: local port already in use")
 	ErrSocketNoLocalPorts = errors.New("redis_driver: not enought free local ports")
 	ErrAddrBadParams = errors.New("redis_driver: bad address given")
 	ErrConnectionInProcess = errors.New("redis_driver: connection attempt already in process")
 	ErrSocketBadFD = errors.New("redis_driver: socket file descriptor is not a valid descriptor")
-	ErrConnectionNoResponse = errors.New("redis_driver: server doesn't response")
+	ErrConnectionRefused = errors.New("redis_driver: connection is refused")
 	ErrSignalInterruption = errors.New("redis_driver: operation is interrupted by signal")
+	ErrNetUnreachable = errors.New("redis_driver: network is unreachable")
 )
 
 // ConnectNew создает и подключает новый сокет
+// Также ставит на отслеживание входящие события для подключенного сокета
 func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
@@ -103,7 +106,7 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 
 		// EADDRINUSE Local address is already in use.
 		if errors.Is(err, syscall.EADDRINUSE) {
-			return 0, ErrSocketNoLocalPorts // точно правильно понял ошибку?
+			return 0, ErrSocketLocalPortInUse // точно правильно понял ошибку?
 		}
 
 		// EADDRNOTAVAIL
@@ -137,7 +140,7 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 
 		// ECONNREFUSED A connect() on a stream socket found no one listening on the remote address.
 		if errors.Is(err, syscall.ECONNREFUSED) {
-			return 0, ErrConnectionNoResponse
+			return 0, ErrConnectionRefused
 		}
 
 		// EFAULT The socket structure address is outside the user's address space.
@@ -165,6 +168,9 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 		}
 
 		// ENETUNREACH Network is unreachable.
+		if errors.Is(err, syscall.ENETUNREACH) {
+			return 0, ErrNetUnreachable
+		}
 
 		// ENOTSOCK The file descriptor sockfd does not refer to a socket.
 		if errors.Is(err, syscall.ENOTSOCK) {
@@ -178,9 +184,13 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 		// ETIMEDOUT
 		// 		Timeout  while  attempting  connection.   The  server may be too busy to accept new connections.
 		// 		Note that for IP sockets the timeout may be very long when syncookies are enabled on the server.
+		if errors.Is(err, syscall.ETIMEDOUT) {
+
+		}
 	}
 
-	err = epoll.InitEventsForSocket(socketFd)
+	// Ставим на отслеживание первичное событие
+	err = epoll.InitEventForSocket(socketFd)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -198,8 +208,25 @@ func ConnectNew(ip [4]byte, port, epollFd int) (int, error) {
 	// Ставим на отслеживание входящие события
 	err = epoll.AddIncomeEventForSocket(socketFd)
 	if err != nil {
-		fmt.Println()
+		fmt.Println(err)
 	}
 
 	return socketFd, nil
+}
+
+// Reconnect создает новый сокет и подключает его. Также удаляет из отслеживания события старого сокета
+func Reconnect(ip [4]byte, port, epollFd, oldSocketFd int) (int, error) { // !Подумать, можно ли переподключить старый сокет
+	// Удаляем события закрытого сокета из списка отслеживания
+	err := epoll.DeleteEventsForSocket(oldSocketFd)
+	if err != nil {
+		return 0, err
+	}
+
+	// Создаем и подключаем новый сокет
+	newSocketFd, err := ConnectNew(ip, port, epollFd)
+	if err != nil {
+		return 0, err
+	}
+
+	return newSocketFd, nil
 }

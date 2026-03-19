@@ -6,8 +6,10 @@ import (
 )
 
 // События, которые хотим отслеживать
-var WaitingEvents = make([]syscall.EpollEvent, 1) // в пуле может быть больше сокетов
-var epollFd int // epoll всегда будет один независимо от кол-ва соединений
+// !в пуле будет больше одного сокета
+var WaitingEvents = make([]syscall.EpollEvent, 1)
+// epoll всегда будет один независимо от кол-ва соединений
+var epollFd int
 
 // New создает новый инстанс epoll
 func New() (int, error) {
@@ -24,7 +26,7 @@ func New() (int, error) {
 // когда приходит одно из отслеживаемых событий в одном из отслеживаемых сокетов
 func Wait() {
 	for {
-		n, err := syscall.EpollWait(epollFd, WaitingEvents, 10)
+		n, err := syscall.EpollWait(epollFd, WaitingEvents, 0)
 		if err != nil {
 			fmt.Println("ошибка ожидания epoll: ", err)
 		}
@@ -34,8 +36,8 @@ func Wait() {
 	}
 }
 
-// InitEventsForSocket добавляет первичное событие в отслеживание для подключения сокета
-func InitEventsForSocket(socketFd int) error {
+// InitEventForSocket добавляет первичное событие в отслеживание для подключения сокета
+func InitEventForSocket(socketFd int) error {
 	// Создаем событие
 	epollEvent := syscall.EpollEvent{
 		Events: syscall.EPOLLOUT,

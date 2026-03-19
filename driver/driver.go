@@ -22,7 +22,7 @@ type Conn struct {
 	// настройки таймаутов
 	// размер буферов
 
-	commandsChan chan models.Command // канал для входящих команд приложения (возможно лучше сделать указателем)
+	commandsChan chan models.Command // канал для входящих команд приложения
 }
 
 // NewConn создает новое соединение и подключается к нему
@@ -50,6 +50,12 @@ func NewConn(ip [4]byte, port int) (*Conn, error) {
 
 	// Запускаем Process в отдельной горутине
 	go conn.Process()
+
+	// Включаем протокол RESP3
+	err = conn.Hello3()
+	if err != nil {
+		return nil, err
+	}
 	
 	return conn, nil
 }
@@ -80,15 +86,8 @@ func (c *Conn) Process() {
 			data, err = message.Receive(c.socketFd)
 			if err != nil {
 				if errors.Is(err, message.ErrConnClosed) {
-
-					// Удаляем события закрытого сокета из списка отслеживания
-					err = epoll.DeleteEventsForSocket(c.socketFd)
-					if err != nil {
-						fmt.Println(err)
-					}
-
 					// Создаем и подключаем новый сокет
-					newSocket, err := socket.ConnectNew(c.redisIp, c.redisPort, c.epollFd)
+					newSocket, err := socket.Reconnect(c.redisIp, c.redisPort, c.epollFd, c.socketFd)
 					if err != nil {
 						fmt.Println(err)
 					}

@@ -22,12 +22,6 @@ func main() {
 	}
 	fmt.Println(testPing)
 
-	// Hello
-	err = conn.Hello3()
-	if err != nil {
-		fmt.Println(err)
-	}
-
 	conn.IncorrectTestCommand()
 
 	// Hello
