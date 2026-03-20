@@ -5,28 +5,25 @@ import (
 	"fmt"
 	"syscall"
 
+	"github.com/rseleznev/redis_driver/internal/connection"
 	"github.com/rseleznev/redis_driver/internal/epoll"
 	"github.com/rseleznev/redis_driver/internal/message"
 	"github.com/rseleznev/redis_driver/internal/models"
-	"github.com/rseleznev/redis_driver/internal/socket"
 )
 
 // Conn представляет собой одно соединение с сервером
 type Conn struct {
+	models.Options
+	
 	socketFd int
 	epollFd int
-	redisIp [4]byte // нужно будет брать из конфига
-	redisPort int // нужно будет брать из конфига
 	proto uint8 // версия протокола RESP
-
-	// настройки таймаутов
-	// размер буферов
 
 	commandsChan chan models.Command // канал для входящих команд приложения
 }
 
 // NewConn создает новое соединение и подключается к нему
-func NewConn(ip [4]byte, port int) (*Conn, error) {
+func NewConn(opts models.Options) (*Conn, error) {
 	// Создаем epoll
 	// В будущем не нужно будет создавать отдельный epoll для каждого соединения
 	epollFd, err := epoll.New()
@@ -35,16 +32,15 @@ func NewConn(ip [4]byte, port int) (*Conn, error) {
 	}
 
 	// Создаем и подключаем сокет
-	socketFd, err := socket.ConnectNew(ip, port, epollFd)
+	socketFd, err := connection.New(opts)
 	if err != nil {
 		return nil, err
 	}
 
 	conn := &Conn{
+		Options: opts,
 		socketFd: socketFd,
 		epollFd: epollFd,
-		redisIp: ip,
-		redisPort: port,
 		commandsChan: make(chan models.Command),
 	}
 
@@ -87,7 +83,7 @@ func (c *Conn) Process() {
 			if err != nil {
 				if errors.Is(err, message.ErrConnClosed) {
 					// Создаем и подключаем новый сокет
-					newSocket, err := socket.Reconnect(c.redisIp, c.redisPort, c.epollFd, c.socketFd)
+					newSocket, err := connection.Reconnect(c.Options, c.socketFd)
 					if err != nil {
 						fmt.Println(err)
 					}

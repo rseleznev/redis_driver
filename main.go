@@ -5,10 +5,15 @@ import (
 	"log"
 
 	"github.com/rseleznev/redis_driver/driver"
+	"github.com/rseleznev/redis_driver/internal/models"
 )
 
 func main() {
-	conn, err := driver.NewConn([4]byte{127, 0, 0, 1}, 6379)
+	conn, err := driver.NewConn(models.Options{
+		RedisIp: [4]byte{127, 0, 0, 1},
+		RedisPort: 6379,
+		RetryAmount: 3,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

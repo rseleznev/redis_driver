@@ -2,6 +2,7 @@ package epoll
 
 import (
 	"fmt"
+	"errors"
 	"syscall"
 )
 
@@ -10,6 +11,12 @@ import (
 var WaitingEvents = make([]syscall.EpollEvent, 1)
 // epoll всегда будет один независимо от кол-ва соединений
 var epollFd int
+
+var (
+	ErrSocketEvent = errors.New("redis_driver: error event has happened on socket")
+	ErrSocketHUPEvent = errors.New("redis_driver: HUP error event has happened on socket")
+	ErrSocketRDHUPEvent = errors.New("redis_driver: RDHUP error event has happened on socket")
+)
 
 // New создает новый инстанс epoll
 func New() (int, error) {
@@ -112,15 +119,18 @@ func DeleteEventsForSocket(socketFd int) error {
 }
 
 // ProcessEvent проверяет пришедшее событие и сокет
-// возможно лучше вынести в отдельный пакет проверок
 func ProcessEvent(socketFd int) error {
 	// тут нужно получше сделать проверки!
 	
 	// Проверяем ошибку в сокете
-	_, err := syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
+	val, err := syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
 	if err != nil {
-		return fmt.Errorf("ошибка в GetsockoptInt: %w", err)
+		fmt.Println("SO_ERROR, value: ", val)
+		return err
 	}
+
+	var errs []error
+
 	// Проверяем полученное событие
 	if WaitingEvents[0].Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
 		fmt.Println("Пришло событие EPOLLIN!")
@@ -130,12 +140,19 @@ func ProcessEvent(socketFd int) error {
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLERR != 0 { // ошибка
 		fmt.Println("Пришло событие EPOLLERR!")
+		errs = append(errs, ErrSocketEvent)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
 		fmt.Println("Пришло событие EPOLLHUP!")
+		errs = append(errs, ErrSocketHUPEvent)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
 		fmt.Println("Пришло событие EPOLLRDHUP!")
+		errs = append(errs, ErrSocketRDHUPEvent)
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	
 	return nil

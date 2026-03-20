@@ -1,5 +1,14 @@
 package models
 
+type Options struct {
+	RedisIp [4]byte // сделать поудобнее, одним полем
+	RedisPort int // сделать поудобнее, одним полем
+	RetryAmount int // количество ретраев
+	// таймауты
+	// размер буфера отправки
+	// размер буфера получения
+}
+
 type Command struct {
 	Operation string
 	SendingData []byte

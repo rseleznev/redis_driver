@@ -12,7 +12,7 @@ var (
 	ErrMsgSndTrunc = errors.New("redis_driver: sended message truncated")
 )
 
-// Send отправляет данные по указанному 
+// Send отправляет данные по указанному сокету
 func Send(socket int, data []byte) error {
 	var err error
 	
