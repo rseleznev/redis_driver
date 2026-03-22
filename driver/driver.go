@@ -2,7 +2,6 @@ package driver
 
 import (
 	"errors"
-	"fmt"
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/connection"
@@ -75,17 +74,25 @@ func (c *Conn) Process() {
 			// Отправляем команду
 			err := message.Send(c.socketFd, cmd.SendingData)
 			if err != nil {
-				fmt.Println(err)
+				if err == models.ErrConnectionClosed {
+					// Создаем и подключаем новый сокет
+					newSocket, err := connection.Reconnect(c.Options, c.socketFd)
+					if err != nil {
+						panic(err)
+					}
+					c.socketFd = newSocket
+				}
+				panic(err)
 			}
 
 			// Читаем ответ
 			data, err = message.Receive(c.socketFd)
 			if err != nil {
-				if errors.Is(err, message.ErrConnClosed) {
+				if errors.Is(err, models.ErrConnectionClosed) {
 					// Создаем и подключаем новый сокет
 					newSocket, err := connection.Reconnect(c.Options, c.socketFd)
 					if err != nil {
-						fmt.Println(err)
+						panic(err)
 					}
 					c.socketFd = newSocket
 

@@ -6,12 +6,7 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/epoll"
-)
-
-var (
-	ErrMsgRcvTrunc = errors.New("redis_driver: received message truncated")
-	ErrMsgRcvCTrunc = errors.New("redis_driver: received oob-message truncated")
-	ErrConnClosed = errors.New("redis_driver: connection is closed by server")
+	"github.com/rseleznev/redis_driver/internal/models"
 )
 
 // Receive получает сообщение по указанному socket
@@ -26,8 +21,8 @@ func Receive(socket int) ([]byte, error) {
 				epoll.Wait()
 				continue
 			}
-			if errors.Is(err, ErrConnClosed) {
-				return nil, ErrConnClosed
+			if errors.Is(err, models.ErrConnectionClosed) {
+				return nil, models.ErrConnectionClosed
 			}
 			// также надо проверять ErrMsgRcvTrunc и ErrMsgRcvCTrunc
 		}
@@ -57,16 +52,16 @@ func tryReceive(socket int) ([]byte, error) {
 
 	// Проверяем флаги ядра
 	if coreFlags & syscall.MSG_TRUNC != 0 {
-		return nil, ErrMsgRcvTrunc
+		return nil, models.ErrRecvMsgTrunc
 	}
 	// Доп проверка, не должна срабатывать
 	if coreFlags & syscall.MSG_CTRUNC != 0 {
-		return nil, ErrMsgRcvCTrunc
+		return nil, models.ErrRecvMsgCTrunc
 	}
 	
 	// Соединение закрыто сервером
 	if n == 0 {
-		return nil, ErrConnClosed
+		return nil, models.ErrConnectionClosed
 	}
 	fmt.Println("Прочитано байт: ", n)
 

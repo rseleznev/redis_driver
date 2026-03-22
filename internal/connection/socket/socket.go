@@ -44,7 +44,7 @@ func New() (int, error) {
 		// EINVAL Invalid flags in type.
 		// EPROTONOSUPPORT The protocol type or the specified protocol is not supported within this domain.
 
-		return 0, fmt.Errorf("ошибка создания сокета: %w", err)
+		return 0, fmt.Errorf("socket creation err: %w", err)
 	}
 
 	// Включаем keep alive
@@ -167,6 +167,8 @@ func Connect(ip [4]byte, port, socketFd int) error {
 		// 		Timeout  while  attempting  connection.   The  server may be too busy to accept new connections.
 		// 		Note that for IP sockets the timeout may be very long when syncookies are enabled on the server.
 		// в неблокирующем режиме этой ошибки быть не должно
+		
+		return fmt.Errorf("socket connection err: %w", err)
 	}
 	
 	return nil

@@ -38,7 +38,7 @@ func New() (int, error) {
 			return 0, models.ErrEpollNoMemory
 		}
 		
-		return 0, fmt.Errorf("ошибка создания epoll: %w", err)
+		return 0, fmt.Errorf("epoll creation err: %w", err)
 	}
 	epollFd = eFd
 	return eFd, nil
@@ -72,7 +72,6 @@ func InitEventForSocket(socketFd int) error {
 	if err != nil {
 		return handleEpollError(err)
 	}
-	fmt.Println("Добавлено первичное событие в epoll")
 	WaitingEvents[0] = epollEvent
 	
 	return nil
@@ -92,7 +91,6 @@ func AddIncomeEventForSocket(socketFd int) error {
 	if err != nil {
 		return handleEpollError(err)
 	}
-	fmt.Println("Добавлено входящее событие в epoll")
 
 	WaitingEvents[0] = epollEvent
 	
@@ -113,7 +111,6 @@ func AddOutcomeEventForSocket(socketFd int) error {
 	if err != nil {
 		return handleEpollError(err)
 	}
-	fmt.Println("Добавлено исходящее событие в epoll")
 
 	WaitingEvents[0] = epollEvent
 	
@@ -127,7 +124,6 @@ func DeleteEventsForSocket(socketFd int) error {
 	if err != nil {
 		return handleEpollError(err)
 	}
-	fmt.Println("Удалены события из epoll для сокета: ", socketFd)
 	WaitingEvents[0] = syscall.EpollEvent{} // удаляем ненужное событие из переменной
 
 	return nil
@@ -173,6 +169,7 @@ func ProcessEvent(socketFd int) error {
 	return nil
 }
 
+// handleEpollError централизованно обрабатывает ошибки вызова epoll_ctl
 func handleEpollError(err error) error {
 	// EBADF  epfd or fd is not a valid file descriptor.
 	if errors.Is(err, syscall.EBADF) {
@@ -209,5 +206,5 @@ func handleEpollError(err error) error {
 	// EPERM  The target file fd does not support epoll.  This error can occur if fd refers to, for example, a  regu‐
 	// 	lar file or a directory.
 
-	return err
+	return fmt.Errorf("epoll_ctl err: %w", err)
 }
