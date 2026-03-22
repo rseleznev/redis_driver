@@ -1,4 +1,4 @@
-package driver
+package redis_driver
 
 import (
 	"errors"

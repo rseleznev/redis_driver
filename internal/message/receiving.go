@@ -21,7 +21,7 @@ func Receive(socketFd int) ([]byte, error) {
 				epoll.Wait()
 				continue
 			}
-			if errors.Is(err, models.ErrConnectionClosed) {
+			if err == models.ErrConnectionClosed {
 				return nil, models.ErrConnectionClosed
 			}
 			// также надо проверять ErrMsgRcvTrunc и ErrMsgRcvCTrunc
