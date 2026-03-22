@@ -82,7 +82,7 @@ func trySend(socketFd int, data []byte) error {
 
 		// EINVAL Invalid argument passed.
 		if errors.Is(err, syscall.EINVAL) {
-			return models.ErrSendBadValue
+			return models.ErrBadValue
 		}
 
 		// EISCONN
@@ -127,7 +127,6 @@ func trySend(socketFd int, data []byte) error {
 	if n != len(data) {
 		return models.ErrSendMsgTrunc
 	}
-	fmt.Println("Принято байт на отправку: ", n)
 	
 	return nil
 }

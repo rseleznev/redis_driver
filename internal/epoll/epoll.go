@@ -144,21 +144,18 @@ func ProcessEvent(socketFd int) error {
 
 	// Проверяем полученное событие
 	if WaitingEvents[0].Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
-		fmt.Println("Пришло событие EPOLLIN!")
+		
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
-		fmt.Println("Пришло событие EPOLLOUT!")
+
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLERR != 0 { // ошибка
-		fmt.Println("Пришло событие EPOLLERR!")
 		errs = append(errs, models.ErrSocketEvent)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
-		fmt.Println("Пришло событие EPOLLHUP!")
 		errs = append(errs, models.ErrSocketHUPEvent)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
-		fmt.Println("Пришло событие EPOLLRDHUP!")
 		errs = append(errs, models.ErrSocketRDHUPEvent)
 	}
 

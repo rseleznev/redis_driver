@@ -11,7 +11,6 @@ import (
 
 // Ping отправляет тестовую команду для проверки соединения
 func (c *Conn) Ping() (string, error) {
-	fmt.Println("Вызвана команда Ping")
 	pingCommand := message.SerializeCommand("PING")
 
 	cmd := models.Command{
@@ -35,14 +34,12 @@ func (c *Conn) Ping() (string, error) {
 	if !ok {
 		return "", errors.New("ошибка преобразования")
 	}
-	fmt.Println("Команда Ping завершена")
 
 	return string(result), nil
 }
 
 // Hello3 проверяет соединение и включает протокол RESP3
 func (c *Conn) Hello3() error {
-	fmt.Println("Вызвана команда Hello3")
 	helloCommand := message.SerializeCommand("HELLO", "3")
 
 	cmd := models.Command{
@@ -68,8 +65,6 @@ func (c *Conn) Hello3() error {
 	}
 	pv, _ := strconv.Atoi(result["proto"])
 	c.proto = uint8(pv)
-	fmt.Println(result)
-	fmt.Println("Команда Hello3 завершена")
 	
 	return nil
 }
@@ -79,7 +74,6 @@ func (c *Conn) Hello3() error {
 // Параметр value должен быть строкой или срезом байт.
 // Передача duration = 0 означает, что значение будет храниться без ограничения по времени
 func (c *Conn) SetValueForKey(key string, value any, duration int) error {
-	fmt.Println("Вызвана команда SetValueForKey")
 	var setCommand []byte
 	if duration == 0 {
 		setCommand = message.SerializeCommand("SET", key, value)
@@ -102,12 +96,11 @@ func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 	parsed := message.Parse(data)
 	deserialized := message.Deserialize(parsed)
 
-	result, ok := deserialized.([]byte)
+	_, ok := deserialized.([]byte)
 	if !ok {
 		return errors.New("ошибка преобразования")
 	}
-	fmt.Println(string(result))
-	fmt.Println("Команда SetValueForKey завершена")
+	// надо проверить, не вернулась ли ошибка
 	
 	return nil
 }
@@ -116,7 +109,6 @@ func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 //
 // Возвращается строка или срез байт
 func (c *Conn) GetValueByKey(key string) any {
-	fmt.Println("Вызвана команда GetValueByKey")
 	getCommand := message.SerializeCommand("GET", key)
 
 	cmd := models.Command{
@@ -129,19 +121,15 @@ func (c *Conn) GetValueByKey(key string) any {
 
 	// Блокируемся и ждем результат
 	data := <-cmd.ResultChan
-	for _, v := range data {
-		fmt.Printf("Байт: %q \n", v)
-	}
 
 	parsed := message.Parse(data)
 	deserialized := message.Deserialize(parsed)
-	fmt.Println("Команда GetValueByKey завершена")
 
 	return deserialized
 }
 
+// Проверочная команда
 func (c *Conn) IncorrectTestCommand() {
-	fmt.Println("Вызвана команда IncorrectTestCommand")
 	command := []byte{
 		'*', '2', '\r', '\n',
 		'$', '3', '\r', '\n',
@@ -176,5 +164,4 @@ func (c *Conn) IncorrectTestCommand() {
 		return
 	}
 	fmt.Println(string(result))
-	fmt.Println("Команда IncorrectTestCommand завершена")
 }

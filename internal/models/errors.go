@@ -38,11 +38,11 @@ var (
 	ErrSignalInterruption = errors.New("redis_driver: operation is interrupted by signal") // EINTR
 	ErrNoMemory = errors.New("redis_driver: not enought memory for requested operation") // ENOMEM
 	ErrSpaceAddress = errors.New("redis_driver: an invalid user space address") // EFAULT
+	ErrBadValue = errors.New("redis_driver: invalid argument passed") // EINVAL
 
 	// sending
 	ErrSendMsgTrunc = errors.New("redis_driver: sended message truncated")
 	ErrSendNoAccess = errors.New("redis_driver: no permission for sending") // EACCES
-	ErrSendBadValue = errors.New("redis_driver: invalid argument passed") // EINVAL
 
 	// receiving
 	ErrRecvMsgTrunc = errors.New("redis_driver: received message truncated")
