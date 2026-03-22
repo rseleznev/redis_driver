@@ -10,13 +10,6 @@ import (
 	"github.com/rseleznev/redis_driver/internal/connection/socket"
 )
 
-var (
-	ErrConnectionRetriesFailed = errors.New("redis_driver: all connection retries failed")
-	ErrConnectionRefused = errors.New("redis_driver: connection is refused")
-	ErrServerUnreachable = errors.New("redis_driver: server is unreachable")
-	ErrNetUnreachable = errors.New("redis_driver: network is unreachable")
-)
-
 // New создает новое подключение
 func New(opts models.Options) (int, error) {
 	// Создаем сокет
@@ -24,7 +17,14 @@ func New(opts models.Options) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	attempt := 1
+
+	// Ставим на отслеживание первичное событие
+	err = epoll.InitEventForSocket(socketFd)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	attempt := 1 // счетчик ретраев
 
 	for {
 		// Подключаемся
@@ -35,18 +35,10 @@ func New(opts models.Options) (int, error) {
 				attempt++
 				continue
 			} else {
-				return 0, ErrConnectionRetriesFailed
+				return 0, models.ErrConnectionRetriesFailed
 			}
 		}
 
-		if attempt == 1 {
-			// Ставим на отслеживание первичное событие
-			err = epoll.InitEventForSocket(socketFd)
-			if err != nil {
-				fmt.Println(err)
-			}	
-		}
-		
 		// Ждем результат
 		epoll.Wait()
 
@@ -55,16 +47,16 @@ func New(opts models.Options) (int, error) {
 		if err != nil {
 			// Проверяем ошибки, при которых нет смысла делать ретраи
 			if errors.Is(err, syscall.ECONNREFUSED) {
-				return 0, ErrConnectionRefused
+				return 0, models.ErrConnectionRefused
 			}
 			if errors.Is(err, syscall.EHOSTUNREACH) {
-				return 0, ErrServerUnreachable
+				return 0, models.ErrServerUnreachable
 			}
 			if errors.Is(err, syscall.ENETUNREACH) {
-				return 0, ErrNetUnreachable
+				return 0, models.ErrNetUnreachable
 			}
 			if errors.Is(err, syscall.EACCES) {
-				return 0, socket.ErrSocketNoAccess
+				return 0, models.ErrSocketNoAccess
 			}
 			
 			// Делаем ретраи
@@ -72,12 +64,11 @@ func New(opts models.Options) (int, error) {
 				attempt++
 				continue
 			} else {
-				return 0, ErrConnectionRetriesFailed
+				return 0, models.ErrConnectionRetriesFailed
 			}
 		}
 		break
 	}
-	fmt.Println("Сокет подключен!")
 
 	// Ставим на отслеживание входящие события
 	err = epoll.AddIncomeEventForSocket(socketFd)

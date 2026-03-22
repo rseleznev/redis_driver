@@ -4,19 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"syscall"
-)
 
-var (
-	ErrSocketNoAccess = errors.New("redis_driver: no access to socket")
-	ErrTooManyFilesInProcess = errors.New("redis_driver: per-process limit of open file descriptors has been reached")
-	ErrTooManyFilesInSystem = errors.New("redis_driver: system-wide limit of open file descriptors has been reached")
-	ErrSocketNoMemory = errors.New("redis_driver: not enought memory available")
-	ErrSocketLocalPortInUse = errors.New("redis_driver: local port already in use")
-	ErrSocketNoLocalPorts = errors.New("redis_driver: not enought free local ports")
-	ErrAddrBadParams = errors.New("redis_driver: bad address given")
-	ErrConnectionInProcess = errors.New("redis_driver: connection attempt already in process")
-	ErrSocketBadFD = errors.New("redis_driver: socket file descriptor is not a valid descriptor")
-	ErrSignalInterruption = errors.New("redis_driver: operation is interrupted by signal")
+	"github.com/rseleznev/redis_driver/internal/models"
 )
 
 // New создает новый сокет
@@ -26,27 +15,27 @@ func New() (int, error) {
 	if err != nil {
 		// EACCES Permission to create a socket of the specified type and/or protocol is denied.
 		if errors.Is(err, syscall.EACCES) {
-			return 0, ErrSocketNoAccess
+			return 0, models.ErrSocketNoAccess
 		}
 
 		// EMFILE The per-process limit on the number of open file descriptors has been reached.
 		if errors.Is(err, syscall.EMFILE) {
-			return 0, ErrTooManyFilesInProcess
+			return 0, models.ErrTooManyFilesInProcess
 		}
 
 		// ENFILE The system-wide limit on the total number of open files has been reached.
 		if errors.Is(err, syscall.ENFILE) {
-			return 0, ErrTooManyFilesInSystem
+			return 0, models.ErrTooManyFilesInSystem
 		}
 
 		// ENOBUFS or ENOMEM
 		// 		Insufficient  memory  is available.  The socket cannot be created until sufficient resources are
 		// 		freed.
 		if errors.Is(err, syscall.ENOBUFS) {
-			return 0, ErrSocketNoMemory
+			return 0, models.ErrSocketNoMemory
 		}
 		if errors.Is(err, syscall.ENOMEM) {
-			return 0, ErrSocketNoMemory
+			return 0, models.ErrSocketNoMemory
 		}
 
 		// Еще могут быть:
@@ -62,7 +51,6 @@ func New() (int, error) {
 	syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
 
 	// Настраиваем проверку keep alive
-	// специфично для Linux!
 	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPIDLE, 300) // через 5 минут без активности...
 	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, 60) // отправляется тестовый пакет, ждем 60 секунд...
 	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPCNT, 5) // после 5 неудачных попыток соединение закрывается
@@ -88,7 +76,7 @@ func Connect(ip [4]byte, port, socketFd int) error {
 		// 		socket file, or search permission is denied for one of the directories in the path prefix.  (See
 		// 		also path_resolution(7).)
 		if errors.Is(err, syscall.EACCES) {
-			return ErrSocketNoAccess
+			return models.ErrSocketNoAccess
 		}
 
 		// EACCES, EPERM
@@ -99,12 +87,12 @@ func Connect(ip [4]byte, port, socketFd int) error {
 		// 		policy saying that an HTTP proxy can only connect to ports associated with HTTP servers, and the
 		// 		proxy tries to connect to a different port).  dd
 		if errors.Is(err, syscall.EPERM) {
-			return ErrSocketNoAccess
+			return models.ErrSocketNoAccess
 		}
 
 		// EADDRINUSE Local address is already in use.
 		if errors.Is(err, syscall.EADDRINUSE) {
-			return ErrSocketLocalPortInUse // точно правильно понял ошибку?
+			return models.ErrSocketLocalPortInUse // точно правильно понял ошибку?
 		}
 
 		// EADDRNOTAVAIL
@@ -113,12 +101,12 @@ func Connect(ip [4]byte, port, socketFd int) error {
 		// 		numbers  in  the  ephemeral  port  range  are  currently  in  use.   See   the   discussion   of
 		// 		/proc/sys/net/ipv4/ip_local_port_range in ip(7).
 		if errors.Is(err, syscall.EADDRNOTAVAIL) {
-			return ErrSocketNoLocalPorts // точно правильно понял ошибку?
+			return models.ErrSocketNoLocalPorts // точно правильно понял ошибку?
 		}
 
 		// EAFNOSUPPORT The passed address didn't have the correct address family in its sa_family field.
 		if errors.Is(err, syscall.EAFNOSUPPORT) {
-			return ErrAddrBadParams
+			return models.ErrAddrBadParams
 		}
 
 		// EAGAIN For  nonblocking  UNIX  domain  sockets, the socket is nonblocking, and the connection cannot be
@@ -128,12 +116,12 @@ func Connect(ip [4]byte, port, socketFd int) error {
 
 		// EALREADY The socket is nonblocking and a previous connection attempt has not yet been completed.
 		if errors.Is(err, syscall.EALREADY) {
-			return ErrConnectionInProcess
+			return models.ErrConnectionInProcess
 		}
 
 		// EBADF  sockfd is not a valid open file descriptor.
 		if errors.Is(err, syscall.EBADF) {
-			return ErrSocketBadFD
+			return models.ErrSocketBadFD
 		}
 
 		// ECONNREFUSED A connect() on a stream socket found no one listening on the remote address.
@@ -141,7 +129,7 @@ func Connect(ip [4]byte, port, socketFd int) error {
 
 		// EFAULT The socket structure address is outside the user's address space.
 		if errors.Is(err, syscall.EFAULT) {
-			return ErrSocketNoAccess
+			return models.ErrSocketNoAccess
 		}
 
 		// EINPROGRESS
@@ -155,12 +143,11 @@ func Connect(ip [4]byte, port, socketFd int) error {
 
 		// EINTR  The system call was interrupted by a signal that was caught; see signal(7).
 		if errors.Is(err, syscall.EINTR) {
-			return ErrSignalInterruption
+			return models.ErrSignalInterruption
 		}
 
 		// EISCONN The socket is already connected.
 		if errors.Is(err, syscall.EISCONN) {
-			fmt.Println("Сокет уже подключен")
 			return nil
 		}
 
@@ -169,7 +156,7 @@ func Connect(ip [4]byte, port, socketFd int) error {
 
 		// ENOTSOCK The file descriptor sockfd does not refer to a socket.
 		if errors.Is(err, syscall.ENOTSOCK) {
-			return ErrSocketBadFD
+			return models.ErrSocketBadFD
 		}
 
 		// EPROTOTYPE

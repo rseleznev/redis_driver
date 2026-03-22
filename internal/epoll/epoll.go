@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"errors"
 	"syscall"
+
+	"github.com/rseleznev/redis_driver/internal/models"
 )
 
 // События, которые хотим отслеживать
@@ -12,16 +14,23 @@ var WaitingEvents = make([]syscall.EpollEvent, 1)
 // epoll всегда будет один независимо от кол-ва соединений
 var epollFd int
 
-var (
-	ErrSocketEvent = errors.New("redis_driver: error event has happened on socket")
-	ErrSocketHUPEvent = errors.New("redis_driver: HUP error event has happened on socket")
-	ErrSocketRDHUPEvent = errors.New("redis_driver: RDHUP error event has happened on socket")
-)
-
 // New создает новый инстанс epoll
 func New() (int, error) {
 	eFd, err := syscall.EpollCreate(1)
 	if err != nil {
+		// EINVAL size is not positive.
+
+		// EINVAL (epoll_create1()) Invalid value specified in flags.
+
+		// EMFILE The per-user limit on the number of epoll instances  imposed  by  /proc/sys/fs/epoll/max_user_instances
+		// 		was encountered.  See epoll(7) for further details.
+
+		// EMFILE The per-process limit on the number of open file descriptors has been reached.
+
+		// ENFILE The system-wide limit on the total number of open files has been reached.
+
+		// ENOMEM There was insufficient memory to create the kernel object.
+		
 		return 0, fmt.Errorf("ошибка создания epoll: %w", err)
 	}
 	fmt.Println("epoll создан")
@@ -140,15 +149,15 @@ func ProcessEvent(socketFd int) error {
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLERR != 0 { // ошибка
 		fmt.Println("Пришло событие EPOLLERR!")
-		errs = append(errs, ErrSocketEvent)
+		errs = append(errs, models.ErrSocketEvent)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
 		fmt.Println("Пришло событие EPOLLHUP!")
-		errs = append(errs, ErrSocketHUPEvent)
+		errs = append(errs, models.ErrSocketHUPEvent)
 	}
 	if WaitingEvents[0].Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
 		fmt.Println("Пришло событие EPOLLRDHUP!")
-		errs = append(errs, ErrSocketRDHUPEvent)
+		errs = append(errs, models.ErrSocketRDHUPEvent)
 	}
 
 	if len(errs) > 0 {
