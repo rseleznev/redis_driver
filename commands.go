@@ -81,6 +81,7 @@ func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 		durString := strconv.Itoa(duration)
 		setCommand = message.SerializeCommand("SET", key, value, "EX", durString)
 	}
+	// здесь может вернуться ошибка
 
 	cmd := models.Command{
 		Operation: "SET",

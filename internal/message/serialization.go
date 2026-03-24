@@ -56,7 +56,7 @@ func buildDOMPart(input any) models.DOMPart {
 		part.TotalBytesLen = len(input)
 
 	default:
-		panic("redis_driver: неподдерживаемый тип данных")
+		panic("redis_driver: неподдерживаемый тип данных") // здесь надо возвращать ошибку
 	}
 
 	return part

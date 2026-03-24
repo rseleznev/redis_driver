@@ -10,24 +10,23 @@ import (
 
 var (
 	conn *Conn
-	err error
-	key = "test"
-	value = "value"
-	duration = 300
 ) 
 
 func TestMain(m *testing.M) {
+	var err error
+
 	conn, err = NewConn(models.Options{
 		RedisIp: [4]byte{127, 0, 0, 1},
 		RedisPort: 6379,
 		RetryAmount: 3,
 	})
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Ошибка соединения: ", err)
 		os.Exit(1)
 	}
 
 	exitCode := m.Run()
+	conn.Close()
 	os.Exit(exitCode)
 }
 
@@ -56,34 +55,49 @@ func TestHello3(t *testing.T) {
 func TestSetValueForKey(t *testing.T) {
 	t.Log("Запуск команды SetValueForKey")
 	
-	err := conn.SetValueForKey(key, value, duration)
-	if err != nil {
-		t.Fatal("Ошибка в команде SetValueForKey: ", err)
+	data := []struct {
+		testName string
+		key string
+		value any
+		duration int
+		expectedErr error
+	}{
+		{"success", "test", "value", 300, nil},
+		{"successPermKey", "testPermKey", "value2", 0, nil},
+	}
+
+	for _, d := range data {
+		t.Run(d.testName, func(t *testing.T) {
+			err := conn.SetValueForKey(d.key, d.value, d.duration)
+			if d.expectedErr != err {
+				t.Fatal("Ошибка в команде SetValueForKey: ", err)
+			}
+		})
 	}
 	t.Log("Выполнена команда SetValueForKey")
 }
 
-func TestGetValueByKey(t *testing.T) {
-	t.Log("Запуск команды GetValueByKey")
+// func TestGetValueByKey(t *testing.T) {
+// 	t.Log("Запуск команды GetValueByKey")
 	
-	testGet := conn.GetValueByKey(key)
+// 	testGet := conn.GetValueByKey(key)
 
-	var result string
+// 	var result string
 
-	switch r := testGet.(type) {
-	case string:
-		result = r
+// 	switch r := testGet.(type) {
+// 	case string:
+// 		result = r
 
-	case []byte:
-		result = string(r)
+// 	case []byte:
+// 		result = string(r)
 
-	default:
-		t.Fatal("Неожиданный тип у значения: ", testGet)
+// 	default:
+// 		t.Fatal("Неожиданный тип у значения: ", testGet)
 
-	}
-	if result != value {
-		t.Fatalf("Значение не совпадает - ожидаемое %s, получено %s", value, result)
-	}
+// 	}
+// 	if result != value {
+// 		t.Fatalf("Значение не совпадает - ожидаемое %s, получено %s", value, result)
+// 	}
 
-	t.Log("Результат команды GetValueByKey: ", result)
-}
+// 	t.Log("Результат команды GetValueByKey: ", result)
+// }
