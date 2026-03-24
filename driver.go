@@ -43,8 +43,8 @@ func NewConn(opts models.Options) (*Conn, error) {
 		commandsChan: make(chan models.Command),
 	}
 
-	// Запускаем Process в отдельной горутине
-	go conn.Process()
+	// Запускаем process в отдельной горутине
+	go conn.process()
 
 	// Включаем протокол RESP3
 	err = conn.Hello3()
@@ -64,9 +64,9 @@ func (c *Conn) Close() {
 	close(c.commandsChan)
 }
 
-// Process принимает команды от потоков, централизованно отправляет их
+// process принимает команды от потоков, централизованно отправляет их
 // и возвращает результат ждущему потоку
-func (c *Conn) Process() {
+func (c *Conn) process() {
 	for cmd := range c.commandsChan {
 		var data []byte
 

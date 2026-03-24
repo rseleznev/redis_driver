@@ -2,7 +2,6 @@ package connection
 
 import (
 	"errors"
-	"fmt"
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/epoll"
@@ -21,7 +20,7 @@ func New(opts models.Options) (int, error) {
 	// Ставим на отслеживание первичное событие
 	err = epoll.InitEventForSocket(socketFd)
 	if err != nil {
-		fmt.Println(err)
+		return 0, err
 	}
 
 	attempt := 1 // счетчик ретраев
@@ -58,6 +57,8 @@ func New(opts models.Options) (int, error) {
 			if errors.Is(err, syscall.EACCES) {
 				return 0, models.ErrSocketNoAccess
 			}
+
+			// ErrSocketEvent, ErrSocketHUPEvent и ErrSocketRDHUPEvent точно не надо проверять?
 			
 			// Делаем ретраи
 			if attempt < opts.RetryAmount {
@@ -73,7 +74,7 @@ func New(opts models.Options) (int, error) {
 	// Ставим на отслеживание входящие события
 	err = epoll.AddIncomeEventForSocket(socketFd)
 	if err != nil {
-		fmt.Println(err)
+		return 0, err
 	}
 
 	return socketFd, nil

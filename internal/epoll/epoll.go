@@ -51,6 +51,7 @@ func Wait() {
 		n, err := syscall.EpollWait(epollFd, WaitingEvents, 0)
 		if err != nil {
 			fmt.Println("ошибка ожидания epoll: ", err)
+			break
 		}
 		if n > 0 { // Пришли какие-то события
 			break
@@ -131,8 +132,6 @@ func DeleteEventsForSocket(socketFd int) error {
 
 // ProcessEvent проверяет пришедшее событие и сокет
 func ProcessEvent(socketFd int) error {
-	// тут нужно получше сделать проверки!
-	
 	// Проверяем ошибку в сокете
 	val, err := syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
 	if err != nil {
