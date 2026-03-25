@@ -1,6 +1,7 @@
 package redis_driver
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -131,4 +132,41 @@ func TestGetValueByKey(t *testing.T) {
 		})
 	}
 	t.Log("Выполнена команда GetValueByKey")
+}
+
+func TestProtocolErrorAndReconnect(t *testing.T) {
+	cmd := []byte{
+		'*', '2', '\r', '\n',
+		'$', '3', '\r', '\n',
+		'S', 'E', 'T', '\r', '\n',
+		'%', '1', '\r', '\n',
+		'$', '4', '\r', '\n',
+		't', 'e', 's', 't', '\r', '\n',
+		'$', '2', '\r', '\n',
+		'v', 'h', '\r', '\n',
+	}
+
+	err := conn.incorrectTestCommand(cmd)
+	if !errors.Is(err, models.ErrRedisProtocol) {
+		t.Error("Некорректная ошибка в TestProtocolErrorAndReconnect")
+	}
+
+	err = conn.SetValueForKey("testAfterReconn", "valueAfterReconn", 300)
+	if err != nil {
+		t.Error("Неожиданная ошибка: ", err)
+	}
+
+	r, err := conn.GetValueByKey("testAfterReconn")
+	if err != nil {
+		t.Error("Неожиданная ошибка: ", err)
+	}
+
+	resultBytes, ok := r.([]byte)
+	if !ok {
+		t.Error("Ошибка преобразования в байты")
+	}
+	result := string(resultBytes)
+	if result != "valueAfterReconn" {
+		t.Error("Значение не соответствует ожидаемому. Значение: ", result)
+	}
 }

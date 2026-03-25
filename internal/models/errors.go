@@ -41,6 +41,7 @@ var (
 	ErrBadValue = errors.New("redis_driver: invalid argument passed") // EINVAL
 	ErrWrongDataType = errors.New("redis_driver: unsupported data type")
 	ErrNoValue = errors.New("redis_driver: no value for given key")
+	ErrRedisProtocol = errors.New("redis_driver: redis protocol error")
 
 	// sending
 	ErrSendMsgTrunc = errors.New("redis_driver: sended message truncated")

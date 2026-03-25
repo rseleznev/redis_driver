@@ -145,6 +145,7 @@ func parsePart(index int, input []byte) (int, models.DOMPart) {
 
 	default:
 		fmt.Println("Неизвестный тип данных")
+		// надо распарсить как ошибку
 	}
 
 	return index, part

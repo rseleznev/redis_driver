@@ -2,6 +2,7 @@ package message
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/rseleznev/redis_driver/internal/models"
 )
@@ -16,6 +17,13 @@ func Deserialize(domObj models.DOMPart) any {
 
 	case "error":
 		s := string(domObj.Value)
+		strParts := strings.Fields(s)
+		if strParts[1] == "Protocol" && strParts[2] == "error:" {
+			errString := strParts[3] + strParts[4] + strParts[5] + strParts[6]
+			err := errors.New(errString)
+			return errors.Join(models.ErrRedisProtocol, err)
+		}
+
 		return errors.New(s)
 
 	case "map":

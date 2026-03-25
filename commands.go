@@ -1,7 +1,6 @@
 package redis_driver
 
 import (
-	"fmt"
 	"errors"
 	"strconv"
 
@@ -184,21 +183,11 @@ func (c *Conn) GetValueByKey(key string) (any, error) {
 }
 
 // Проверочная команда
-func (c *Conn) IncorrectTestCommand() error {
-	command := []byte{
-		'*', '2', '\r', '\n',
-		'$', '3', '\r', '\n',
-		'S', 'E', 'T', '\r', '\n',
-		'%', '1', '\r', '\n',
-		'$', '4', '\r', '\n',
-		't', 'e', 's', 't', '\r', '\n',
-		'$', '2', '\r', '\n',
-		'v', 'h', '\r', '\n',
-	}
+func (c *Conn) incorrectTestCommand(input []byte) error {
 
 	cmd := models.Command{
 		Operation: "SET",
-		SendingData: command,
+		SendingData: input,
 		ResultChan: make(chan []byte),
 		ErrChan: make(chan error),
 	}
@@ -222,11 +211,10 @@ func (c *Conn) IncorrectTestCommand() error {
 	// Десериализация ответа
 	deserialized := message.Deserialize(parsed)
 
-	result, ok := deserialized.([]byte)
-	if !ok {
-		return errors.New("ошибка преобразования")
+	result, ok := deserialized.(error)
+	if ok {
+		return result
 	}
-	fmt.Println(string(result))
 
 	return nil
 }
