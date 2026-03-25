@@ -36,6 +36,9 @@ func Deserialize(domObj models.DOMPart) any {
 
 		return m
 
+	case "null":
+		return models.ErrNoValue
+
 	}
 
 	return result

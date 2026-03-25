@@ -9,9 +9,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-var (
-	conn *Conn
-) 
+var conn *Conn
 
 func TestMain(m *testing.M) {
 	var err error
@@ -37,7 +35,7 @@ func TestPing(t *testing.T) {
 	
 	testPing, err := conn.Ping()
 	if err != nil {
-		t.Fatal("Ошибка в команде Ping: ", err)
+		t.Error("Ошибка в команде Ping: ", err)
 	}
 	t.Log("Результат команды Ping: ", testPing)
 }
@@ -48,7 +46,7 @@ func TestHello3(t *testing.T) {
 	
 	err := conn.Hello3()
 	if err != nil {
-		t.Fatal("Ошибка в команде Hello3: ", err)
+		t.Error("Ошибка в команде Hello3: ", err)
 	}
 	t.Log("Выполнена команда Hello3")
 }
@@ -65,13 +63,15 @@ func TestSetValueForKey(t *testing.T) {
 	}{
 		{"success", "test", "value", 300, nil},
 		{"successPermKey", "testPermKey", "value2", 0, nil},
+		{"successBytes", "testBytes", []byte{'h', 'e', 'l', 'l', 'o'}, 300, nil},
+		{"failWithMap", "testFail", map[string]string{"tt": "vv"}, 300, models.ErrWrongDataType},
 	}
 
 	for _, d := range data {
 		t.Run(d.testName, func(t *testing.T) {
 			err := conn.SetValueForKey(d.key, d.value, d.duration)
 			if d.expectedErr != err {
-				t.Fatal("Ошибка в команде SetValueForKey: ", err)
+				t.Errorf("Ожидаемая ошибка %s, получено %s", d.expectedErr, err)
 			}
 		})
 	}
@@ -84,30 +84,47 @@ func TestGetValueByKey(t *testing.T) {
 	data := []struct {
 		testName string
 		key string
-		expectedStringValue string
-		expectedBytesValue []byte
+		expectedValueType string
+		expectedValue any
 		expectedErr error
 	}{
-		{"success", "test", "value", nil, nil},
-		{"successPermKey", "testPermKey", "value2", nil, nil},
+		{"success", "test", "string", "value", nil},
+		{"successPermKey", "testPermKey", "string", "value2", nil},
+		{"successBytes", "testBytes", "bytes", []byte{'h', 'e', 'l', 'l', 'o'}, nil},
+		{"failNoValue", "testNoValue", "nil", nil, models.ErrNoValue},
 	}
 
 	for _, d := range data {
 		t.Run(d.testName, func(t *testing.T) {
 			r, err := conn.GetValueByKey(d.key)
 			if d.expectedErr != err {
-				t.Fatalf("Ожидаемая ошибка %s, получено %s", d.expectedErr, err)
+				t.Errorf("Ожидаемая ошибка %s, получено %s", d.expectedErr, err)
 			}
-			
-			switch result := r.(type) {
-			case string:
-				if d.expectedStringValue != result {
-					t.Fatalf("Ожидаемое значение %s, получено %s", d.expectedStringValue, result)
+
+			switch d.expectedValueType {
+			case "string":
+				resultBytes, ok := r.([]byte)
+				if !ok {
+					t.Fatal("Ошибка преобразования в байты")
 				}
-			
-			case []byte:
-				if slices.Compare(d.expectedBytesValue, result) == 0 {
-					t.Fatalf("Ожидаемое значение %s, получено %s", d.expectedBytesValue, result)
+				result := string(resultBytes)
+				if d.expectedValue != result {
+					t.Errorf("Ожидаемое значение %s, получено %s", d.expectedValue, result)
+				}
+
+			case "bytes":
+				result, ok := r.([]byte)
+				if !ok {
+					t.Error("Ошибка преобразования в байты")
+				}
+				expSlice := d.expectedValue.([]byte)
+				if slices.Compare(expSlice, result) != 0 {
+					t.Errorf("Ожидаемое значение %s, получено %s", expSlice, result)
+				}
+
+			case "nil":
+				if d.expectedValue != r {
+					t.Errorf("Ожидаемое значение %s, получено %s", d.expectedValue, r)
 				}
 
 			}
