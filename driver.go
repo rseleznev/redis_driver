@@ -78,11 +78,13 @@ func (c *Conn) process() {
 					// Создаем и подключаем новый сокет
 					newSocket, err := connection.Reconnect(c.Options, c.socketFd)
 					if err != nil {
-						panic(err) // надо будет отправлять в отдельный канал ошибок команды
+						cmd.ErrChan <- err
 					}
 					c.socketFd = newSocket
+
+					continue
 				}
-				panic(err) // надо будет отправлять в отдельный канал ошибок команды
+				cmd.ErrChan <- err
 			}
 
 			// Читаем ответ
@@ -92,14 +94,14 @@ func (c *Conn) process() {
 					// Создаем и подключаем новый сокет
 					newSocket, err := connection.Reconnect(c.Options, c.socketFd)
 					if err != nil {
-						panic(err) // надо будет отправлять в отдельный канал ошибок команды
+						cmd.ErrChan <- err
 					}
 					c.socketFd = newSocket
 
 					// Повторяем цикл
 					continue
 				}
-				panic(err) // надо будет отправлять в отдельный канал ошибок команды
+				cmd.ErrChan <- err
 			}
 			break
 		}

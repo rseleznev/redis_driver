@@ -39,6 +39,7 @@ var (
 	ErrNoMemory = errors.New("redis_driver: not enought memory for requested operation") // ENOMEM
 	ErrSpaceAddress = errors.New("redis_driver: an invalid user space address") // EFAULT
 	ErrBadValue = errors.New("redis_driver: invalid argument passed") // EINVAL
+	ErrWrongDataType = errors.New("redis_driver: unsupported data type")
 
 	// sending
 	ErrSendMsgTrunc = errors.New("redis_driver: sended message truncated")

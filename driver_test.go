@@ -1,8 +1,9 @@
 package redis_driver
 
 import (
-	"os"
 	"fmt"
+	"os"
+	"slices"
 	"testing"
 
 	"github.com/rseleznev/redis_driver/internal/models"
@@ -77,27 +78,40 @@ func TestSetValueForKey(t *testing.T) {
 	t.Log("Выполнена команда SetValueForKey")
 }
 
-// func TestGetValueByKey(t *testing.T) {
-// 	t.Log("Запуск команды GetValueByKey")
-	
-// 	testGet := conn.GetValueByKey(key)
+func TestGetValueByKey(t *testing.T) {
+	t.Log("Запуск команды GetValueByKey")
 
-// 	var result string
+	data := []struct {
+		testName string
+		key string
+		expectedStringValue string
+		expectedBytesValue []byte
+		expectedErr error
+	}{
+		{"success", "test", "value", nil, nil},
+		{"successPermKey", "testPermKey", "value2", nil, nil},
+	}
 
-// 	switch r := testGet.(type) {
-// 	case string:
-// 		result = r
+	for _, d := range data {
+		t.Run(d.testName, func(t *testing.T) {
+			r, err := conn.GetValueByKey(d.key)
+			if d.expectedErr != err {
+				t.Fatalf("Ожидаемая ошибка %s, получено %s", d.expectedErr, err)
+			}
+			
+			switch result := r.(type) {
+			case string:
+				if d.expectedStringValue != result {
+					t.Fatalf("Ожидаемое значение %s, получено %s", d.expectedStringValue, result)
+				}
+			
+			case []byte:
+				if slices.Compare(d.expectedBytesValue, result) == 0 {
+					t.Fatalf("Ожидаемое значение %s, получено %s", d.expectedBytesValue, result)
+				}
 
-// 	case []byte:
-// 		result = string(r)
-
-// 	default:
-// 		t.Fatal("Неожиданный тип у значения: ", testGet)
-
-// 	}
-// 	if result != value {
-// 		t.Fatalf("Значение не совпадает - ожидаемое %s, получено %s", value, result)
-// 	}
-
-// 	t.Log("Результат команды GetValueByKey: ", result)
-// }
+			}
+		})
+	}
+	t.Log("Выполнена команда GetValueByKey")
+}

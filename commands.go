@@ -11,18 +11,31 @@ import (
 
 // Ping отправляет тестовую команду для проверки соединения
 func (c *Conn) Ping() (string, error) {
-	pingCommand := message.SerializeCommand("PING")
+	pingCommand, err := message.SerializeCommand("PING")
+	if err != nil {
+		return "", err
+	}
 
 	cmd := models.Command{
 		Operation: "TEST",
 		SendingData: pingCommand,
 		ResultChan: make(chan []byte),
+		ErrChan: make(chan error),
 	}
 
-	c.commandsChan <- cmd // блокировка, пока Process не заберет команду
+	c.commandsChan <- cmd // блокировка, пока process не заберет команду
 
 	// Блокируемся и ждем результат
-	data := <- cmd.ResultChan
+	var data []byte
+
+	select {
+	case data = <-cmd.ResultChan:
+
+
+	case err = <-cmd.ErrChan:
+		return "", err
+
+	}
 
 	// Парсим сообщение
 	parsed := message.Parse(data)
@@ -40,18 +53,31 @@ func (c *Conn) Ping() (string, error) {
 
 // Hello3 проверяет соединение и включает протокол RESP3
 func (c *Conn) Hello3() error {
-	helloCommand := message.SerializeCommand("HELLO", "3")
+	helloCommand, err := message.SerializeCommand("HELLO", "3")
+	if err != nil {
+		return err
+	}
 
 	cmd := models.Command{
 		Operation: "TEST",
 		SendingData: helloCommand,
 		ResultChan: make(chan []byte),
+		ErrChan: make(chan error),
 	}
 
-	c.commandsChan <- cmd // блокировка, пока Process не заберет команду
+	c.commandsChan <- cmd // блокировка, пока process не заберет команду
 
 	// Блокируемся и ждем результат
-	data := <-cmd.ResultChan
+	var data []byte
+
+	select {
+	case data = <-cmd.ResultChan:
+
+
+	case err = <-cmd.ErrChan:
+		return err
+
+	}
 
 	// Парсим сообщение
 	parsed := message.Parse(data)
@@ -75,33 +101,44 @@ func (c *Conn) Hello3() error {
 // Передача duration = 0 означает, что значение будет храниться без ограничения по времени
 func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 	var setCommand []byte
+	var err error
 	if duration == 0 {
-		setCommand = message.SerializeCommand("SET", key, value)
+		setCommand, err = message.SerializeCommand("SET", key, value)
 	} else {
 		durString := strconv.Itoa(duration)
-		setCommand = message.SerializeCommand("SET", key, value, "EX", durString)
+		setCommand, err = message.SerializeCommand("SET", key, value, "EX", durString)
 	}
-	// здесь может вернуться ошибка
+	if err != nil {
+		return err
+	}
 
 	cmd := models.Command{
 		Operation: "SET",
 		SendingData: setCommand,
 		ResultChan: make(chan []byte),
+		ErrChan: make(chan error),
 	}
 
-	c.commandsChan <- cmd // блокировка, пока Process не заберет команду
+	c.commandsChan <- cmd // блокировка, пока process не заберет команду
 
 	// Блокируемся и ждем результат
-	data := <-cmd.ResultChan
+	var data []byte
+
+	select {
+	case data = <-cmd.ResultChan:
+
+
+	case err = <-cmd.ErrChan:
+		return err
+
+	}
 
 	parsed := message.Parse(data)
 	deserialized := message.Deserialize(parsed)
 
-	_, ok := deserialized.([]byte)
-	if !ok {
-		return errors.New("ошибка преобразования")
+	if err, ok := deserialized.(error); ok {
+		return err
 	}
-	// надо проверить, не вернулась ли ошибка
 	
 	return nil
 }
@@ -109,28 +146,45 @@ func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 // GetValueByKey возвращает значение по ключу key
 //
 // Возвращается строка или срез байт
-func (c *Conn) GetValueByKey(key string) any {
-	getCommand := message.SerializeCommand("GET", key)
+func (c *Conn) GetValueByKey(key string) (any, error) {
+	getCommand, err := message.SerializeCommand("GET", key)
+	if err != nil {
+		return nil, err
+	}
 
 	cmd := models.Command{
 		Operation: "GET",
 		SendingData: getCommand,
 		ResultChan: make(chan []byte),
+		ErrChan: make(chan error),
 	}
 
-	c.commandsChan <- cmd // блокировка, пока Process не заберет команду
+	c.commandsChan <- cmd // блокировка, пока process не заберет команду
 
-	// Блокируемся и ждем результат
-	data := <-cmd.ResultChan
+	// Блокируемся и ждем результат или ошибку
+	var data []byte
+
+	select {
+	case data = <-cmd.ResultChan:
+
+
+	case err = <-cmd.ErrChan:
+		return nil, err
+
+	}
 
 	parsed := message.Parse(data)
 	deserialized := message.Deserialize(parsed)
 
-	return deserialized
+	if err, ok := deserialized.(error); ok {
+		return nil, err
+	}
+
+	return deserialized, nil
 }
 
 // Проверочная команда
-func (c *Conn) IncorrectTestCommand() {
+func (c *Conn) IncorrectTestCommand() error {
 	command := []byte{
 		'*', '2', '\r', '\n',
 		'$', '3', '\r', '\n',
@@ -146,12 +200,21 @@ func (c *Conn) IncorrectTestCommand() {
 		Operation: "SET",
 		SendingData: command,
 		ResultChan: make(chan []byte),
+		ErrChan: make(chan error),
 	}
 
-	c.commandsChan <- cmd // блокировка, пока Process не заберет команду
+	c.commandsChan <- cmd // блокировка, пока process не заберет команду
 
 	// Блокируемся и ждем результат
-	data := <-cmd.ResultChan
+	var data []byte
+
+	select {
+	case data = <-cmd.ResultChan:
+
+	case err := <-cmd.ErrChan:
+		return err
+
+	}
 
 	// Парсим сообщение
 	parsed := message.Parse(data)
@@ -161,8 +224,9 @@ func (c *Conn) IncorrectTestCommand() {
 
 	result, ok := deserialized.([]byte)
 	if !ok {
-		fmt.Println("ошибка преобразования")
-		return
+		return errors.New("ошибка преобразования")
 	}
 	fmt.Println(string(result))
+
+	return nil
 }

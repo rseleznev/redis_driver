@@ -8,15 +8,19 @@ import (
 )
 
 // SerializeCommand сериализует любую команду с параметрами в формат RESP
-func SerializeCommand(params ...any) []byte {
+func SerializeCommand(params ...any) ([]byte, error) {
 	var bytesLen int
 	paramsAmount := len(params)
 
 	parts := make([]models.DOMPart, paramsAmount)
+	var err error
 
 	// Переводим все переданные параметры в DOM
 	for i, v := range params {
-		parts[i] = buildDOMPart(v)
+		parts[i], err = buildDOMPart(v)
+		if err != nil {
+			return nil, err
+		}
 		bytesLen += parts[i].TotalBytesLen
 	}
 
@@ -33,13 +37,13 @@ func SerializeCommand(params ...any) []byte {
 	// Сериализуем в RESP
 	result := serializeDOMToRESP(arr)
 	
-	return result
+	return result, nil
 }
 
 // buildDOMPart переводит тип данных Go в элемент DOM. Поддерживаются только: 
 // string, 
 // []byte, 
-func buildDOMPart(input any) models.DOMPart {
+func buildDOMPart(input any) (models.DOMPart, error) {
 	var part models.DOMPart
 
 	switch input := input.(type) {
@@ -56,10 +60,11 @@ func buildDOMPart(input any) models.DOMPart {
 		part.TotalBytesLen = len(input)
 
 	default:
-		panic("redis_driver: неподдерживаемый тип данных") // здесь надо возвращать ошибку
+		return models.DOMPart{}, models.ErrWrongDataType
+		
 	}
 
-	return part
+	return part, nil
 }
 
 // serializeDOMToRESP сериализует корневой DOM в RESP. Предполагается, что на вход поступит корневой DOM-элемент,

@@ -1,14 +1,22 @@
 package message
 
-import "github.com/rseleznev/redis_driver/internal/models"
+import (
+	"errors"
+
+	"github.com/rseleznev/redis_driver/internal/models"
+)
 
 // Deserialize десериализует DOM-объект в тип данных Go
 func Deserialize(domObj models.DOMPart) any {
 	var result any
 
 	switch domObj.PartType {
-	case "string", "error":
+	case "string":
 		return domObj.Value
+
+	case "error":
+		s := string(domObj.Value)
+		return errors.New(s)
 
 	case "map":
 		m := map[string]string{}

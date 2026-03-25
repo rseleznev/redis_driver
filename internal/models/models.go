@@ -13,7 +13,7 @@ type Command struct {
 	Operation string
 	SendingData []byte
 	ResultChan chan []byte
-	// добавить еще канал для ошибок
+	ErrChan chan error
 }
 
 type DOMPart struct {
