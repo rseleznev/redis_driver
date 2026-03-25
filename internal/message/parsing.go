@@ -1,7 +1,6 @@
 package message
 
 import (
-	"fmt"
 	"strconv"
 
 	"github.com/rseleznev/redis_driver/internal/models"
@@ -144,8 +143,24 @@ func parsePart(index int, input []byte) (int, models.DOMPart) {
 		return index, part
 
 	default:
-		fmt.Println("Неизвестный тип данных")
-		// надо распарсить как ошибку
+		part.PartType = "error"
+		str := []byte("ERR Unknown value type:")
+		part.Value = append(part.Value, str...)
+
+		for {
+			if input[index] == '\r' {
+				if input[index+1] == '\n' {
+					index++
+					break
+				}
+			}
+			partValue = append(partValue, input[index])
+			index++
+		}
+		part.ValueLen = len(partValue)
+		part.Value = append(part.Value, partValue...)
+
+		return index, part
 	}
 
 	return index, part

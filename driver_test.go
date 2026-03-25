@@ -65,7 +65,7 @@ func TestSetValueForKey(t *testing.T) {
 		{"success", "test", "value", 300, nil},
 		{"successPermKey", "testPermKey", "value2", 0, nil},
 		{"successBytes", "testBytes", []byte{'h', 'e', 'l', 'l', 'o'}, 300, nil},
-		{"failWithMap", "testFail", map[string]string{"tt": "vv"}, 300, models.ErrWrongDataType},
+		{"failWithMap", "testFail", map[string]string{"tt": "vv"}, 300, models.ErrUnsupportedDataType},
 	}
 
 	for _, d := range data {

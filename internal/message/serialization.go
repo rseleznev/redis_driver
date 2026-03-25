@@ -60,7 +60,7 @@ func buildDOMPart(input any) (models.DOMPart, error) {
 		part.TotalBytesLen = len(input)
 
 	default:
-		return models.DOMPart{}, models.ErrWrongDataType
+		return models.DOMPart{}, models.ErrUnsupportedDataType
 		
 	}
 
