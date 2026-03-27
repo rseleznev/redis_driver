@@ -12,7 +12,7 @@ import (
 // New создает новое подключение
 func New(opts models.Options) (int, error) {
 	// Создаем сокет
-	socketFd, err := socket.New()
+	socketFd, err := socket.New(opts.TCPSendBufLen, opts.TCPReceiveBufLen)
 	if err != nil {
 		return 0, err
 	}

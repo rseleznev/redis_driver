@@ -9,7 +9,7 @@ import (
 )
 
 // New создает новый сокет
-func New() (int, error) {
+func New(tcpSendBufLen, tcpRcvBufLen int) (int, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 	if err != nil {
@@ -57,7 +57,20 @@ func New() (int, error) {
 
 	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1) // отключаем задержки
 
-	// Настройки буферов
+	// Настройки TCP-буферов ядра
+	if tcpSendBufLen > 0 {
+		err = syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, tcpSendBufLen)
+		if err != nil {
+			return 0, err
+		}
+	}
+	if tcpRcvBufLen > 0 {
+		err = syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, tcpRcvBufLen)
+		if err != nil {
+			return 0, err
+		}
+	}
+	
 
 	return socketFd, nil
 }

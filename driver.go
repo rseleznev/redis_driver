@@ -23,6 +23,8 @@ type Conn struct {
 
 // NewConn создает новое соединение и подключается к нему
 func NewConn(opts models.Options) (*Conn, error) {
+	initOptions(&opts)
+	
 	// Создаем epoll
 	// В будущем не нужно будет создавать отдельный epoll для каждого соединения
 	epollFd, err := epoll.New()
