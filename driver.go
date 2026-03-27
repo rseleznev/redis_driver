@@ -18,6 +18,7 @@ type Conn struct {
 	epollFd int
 	proto uint8 // версия протокола RESP
 
+	receiveBuf []byte // буфер получения
 	commandsChan chan models.Command // канал для входящих команд приложения
 }
 
@@ -42,6 +43,7 @@ func NewConn(opts models.Options) (*Conn, error) {
 		Options: opts,
 		socketFd: socketFd,
 		epollFd: epollFd,
+		receiveBuf: make([]byte, opts.ReceiveBufAvgLen),
 		commandsChan: make(chan models.Command),
 	}
 
@@ -90,7 +92,7 @@ func (c *Conn) process() {
 			}
 
 			// Читаем ответ
-			data, err = message.Receive(c.socketFd, c.RetryAmount)
+			data, err = message.Receive(c.socketFd, c.RetryAmount, c.receiveBuf)
 			if err != nil {
 				if errors.Is(err, models.ErrConnectionClosed) { // соединение закрыто, нужно переподключиться
 					// Создаем и подключаем новый сокет

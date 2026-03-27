@@ -58,6 +58,7 @@ func New(tcpSendBufLen, tcpRcvBufLen int) (int, error) {
 	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1) // отключаем задержки
 
 	// Настройки TCP-буферов ядра
+	// надо покрыть тестами!
 	if tcpSendBufLen > 0 {
 		err = syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, tcpSendBufLen)
 		if err != nil {

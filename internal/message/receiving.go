@@ -10,13 +10,13 @@ import (
 )
 
 // Receive получает сообщение по указанному socket
-func Receive(socketFd, retriesAvailable int) ([]byte, error) {
+func Receive(socketFd, retriesAvailable int, recvBuf []byte) ([]byte, error) {
 	var result []byte
 	var err error
 	attempt := 1 // счетчик ретраев
 
 	for {
-		result, err = tryReceive(socketFd)
+		result, err = tryReceive(socketFd, recvBuf)
 		if err != nil {
 			if errors.Is(err, syscall.EWOULDBLOCK) {
 				epoll.Wait()
@@ -31,7 +31,10 @@ func Receive(socketFd, retriesAvailable int) ([]byte, error) {
 
 			}
 
-			// также надо проверять ErrMsgRcvTrunc и ErrMsgRcvCTrunc
+			// В буфер получения влезло не все
+			if err == models.ErrRecvMsgTrunc {
+				// нужно сложить прочитанное в отдельный буфер и идти за оставшимися данными
+			}
 
 			// делаем ретраи
 			if attempt < retriesAvailable {
@@ -44,7 +47,7 @@ func Receive(socketFd, retriesAvailable int) ([]byte, error) {
 		break
 	}
 	
-	// Проверки
+	// Проверки события
 	err = epoll.ProcessEvent(socketFd)
 	if err != nil {
 		return nil, err
@@ -54,12 +57,9 @@ func Receive(socketFd, retriesAvailable int) ([]byte, error) {
 }
 
 // tryReceive делает одну попытку прочитать ответ сервера
-func tryReceive(socketFd int) ([]byte, error) {
-	// Буфер для чтения
-	buf := make([]byte, 1024) // 8192 как вариант
-
+func tryReceive(socketFd int, recvBuf []byte) ([]byte, error) {
 	// Читаем ответ
-	n, _, coreFlags, _, err := syscall.Recvmsg(socketFd, buf, nil, 0)
+	n, _, coreFlags, _, err := syscall.Recvmsg(socketFd, recvBuf, nil, 0)
 	if err != nil {
 		// EAGAIN or EWOULDBLOCK
 		// 		The  socket  is marked nonblocking and the receive operation would block, or a receive timeout had been
@@ -116,8 +116,9 @@ func tryReceive(socketFd int) ([]byte, error) {
 	}
 
 	// Проверяем флаги ядра
+	// Проверка, все ли данные влезли в буфер получения
 	if coreFlags & syscall.MSG_TRUNC != 0 {
-		return nil, models.ErrRecvMsgTrunc
+		return recvBuf, models.ErrRecvMsgTrunc
 	}
 	// Доп проверка, не должна срабатывать
 	if coreFlags & syscall.MSG_CTRUNC != 0 {
@@ -129,5 +130,5 @@ func tryReceive(socketFd int) ([]byte, error) {
 		return nil, models.ErrConnectionClosed
 	}
 
-	return buf[:n], nil
+	return recvBuf[:n], nil
 }
