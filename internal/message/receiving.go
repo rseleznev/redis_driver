@@ -10,9 +10,10 @@ import (
 )
 
 // Receive получает сообщение по указанному socket
-func Receive(socketFd int) ([]byte, error) {
+func Receive(socketFd, retriesAvailable int) ([]byte, error) {
 	var result []byte
 	var err error
+	attempt := 1 // счетчик ретраев
 
 	for {
 		result, err = tryReceive(socketFd)
@@ -21,10 +22,24 @@ func Receive(socketFd int) ([]byte, error) {
 				epoll.Wait()
 				continue
 			}
-			if err == models.ErrConnectionClosed {
-				return nil, models.ErrConnectionClosed
+			
+			// Проверяем ошибки, при которых нет смысла делать ретраи
+			switch err {
+			case models.ErrSocketBadFD, models.ErrConnectionRefused, models.ErrSpaceAddress, models.ErrSignalInterruption, 
+			models.ErrBadValue, models.ErrNoMemory, models.ErrNotConnected, models.ErrConnectionClosed:
+				return nil, err
+
 			}
+
 			// также надо проверять ErrMsgRcvTrunc и ErrMsgRcvCTrunc
+
+			// делаем ретраи
+			if attempt < retriesAvailable {
+				attempt++
+				continue
+			} else {
+				return nil, models.ErrConnectionRetriesFailed
+			}
 		}
 		break
 	}

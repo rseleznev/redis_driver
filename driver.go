@@ -88,9 +88,9 @@ func (c *Conn) process() {
 			}
 
 			// Читаем ответ
-			data, err = message.Receive(c.socketFd)
+			data, err = message.Receive(c.socketFd, c.RetryAmount)
 			if err != nil {
-				if errors.Is(err, models.ErrConnectionClosed) {
+				if errors.Is(err, models.ErrConnectionClosed) { // соединение закрыто, нужно переподключиться
 					// Создаем и подключаем новый сокет
 					newSocket, err := connection.Reconnect(c.Options, c.socketFd)
 					if err != nil {
@@ -98,7 +98,6 @@ func (c *Conn) process() {
 					}
 					c.socketFd = newSocket
 
-					// Повторяем цикл
 					continue
 				}
 				cmd.ErrChan <- err

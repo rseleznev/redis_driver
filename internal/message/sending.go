@@ -10,7 +10,7 @@ import (
 )
 
 // Send отправляет данные по указанному сокету
-func Send(socketFd int, data []byte, retries int) error {
+func Send(socketFd int, data []byte, retriesAvailable int) error {
 	var err error
 	var sentBytes int
 	attempt := 1 // счетчик ретраев
@@ -38,7 +38,8 @@ func Send(socketFd int, data []byte, retries int) error {
 				continue
 			}
 
-			if attempt < retries {
+			// делаем ретраи
+			if attempt < retriesAvailable {
 				attempt++
 				continue
 			} else {
