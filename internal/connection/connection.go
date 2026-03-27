@@ -29,6 +29,14 @@ func New(opts models.Options) (int, error) {
 		// Подключаемся
 		err = socket.Connect(opts.RedisIp, opts.RedisPort, socketFd)
 		if err != nil {
+			// Проверяем ошибки, при которых нет смысла делать ретраи
+			switch err {
+			case models.ErrSocketNoAccess, models.ErrSocketLocalPortInUse, models.ErrSocketNoLocalPorts, models.ErrAddrBadParams,
+			models.ErrConnectionInProcess, models.ErrSocketBadFD, models.ErrSignalInterruption:
+				return 0, err
+
+			}
+
 			// Делаем ретраи
 			if attempt < opts.RetryAmount {
 				attempt++

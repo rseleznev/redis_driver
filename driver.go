@@ -72,9 +72,9 @@ func (c *Conn) process() {
 
 		for {
 			// Отправляем команду
-			err := message.Send(c.socketFd, cmd.SendingData)
+			err := message.Send(c.socketFd, cmd.SendingData, c.RetryAmount)
 			if err != nil {
-				if err == models.ErrConnectionClosed {
+				if err == models.ErrConnectionClosed { // соединение закрыто, нужно переподключиться
 					// Создаем и подключаем новый сокет
 					newSocket, err := connection.Reconnect(c.Options, c.socketFd)
 					if err != nil {

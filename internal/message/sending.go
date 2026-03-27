@@ -10,18 +10,40 @@ import (
 )
 
 // Send отправляет данные по указанному сокету
-func Send(socketFd int, data []byte) error {
+func Send(socketFd int, data []byte, retries int) error {
 	var err error
+	var sentBytes int
+	attempt := 1 // счетчик ретраев
 	
 	for {
-		err = trySend(socketFd, data)
+		sentBytes, err = trySend(socketFd, data)
 		if err != nil {
 			if errors.Is(err, syscall.EWOULDBLOCK) {
 				epoll.Wait()
 				continue
 			}
-			// также нужно проверять ErrMsgSndTrunc
-			fmt.Println(err)
+
+			// Проверяем ошибки, при которых нет смысла делать ретраи
+			switch err {
+			case models.ErrSendNoAccess, models.ErrSocketBadFD, models.ErrConnectionReset, models.ErrSpaceAddress, models.ErrSignalInterruption,
+			models.ErrBadValue, models.ErrNoMemory, models.ErrNotConnected, models.ErrConnectionClosed:
+				return err
+
+			}
+
+			// Если отправлены не все байты
+			// нужно ли тут менять размеры буфера отправки?
+			if err == models.ErrSendMsgTrunc {
+				data = data[sentBytes:] // отсекаем уже отправленные байты и пробует дозакинуть оставшиеся
+				continue
+			}
+
+			if attempt < retries {
+				attempt++
+				continue
+			} else {
+				return models.ErrConnectionRetriesFailed
+			}
 		}
 		break
 	}
@@ -29,8 +51,8 @@ func Send(socketFd int, data []byte) error {
 	return err
 }
 
-// trySend делает одну попытку отправить данные и выполняет проверки, если данные отправлены
-func trySend(socketFd int, data []byte) error {
+// trySend делает одну попытку отправить данные
+func trySend(socketFd int, data []byte) (int, error) {
 	// Системный вызов для отправки
 	n, err := syscall.SendmsgN(socketFd, data, nil, nil, 0)
 	if err != nil {
@@ -41,7 +63,7 @@ func trySend(socketFd int, data []byte) error {
 		// 		(For UDP sockets) An attempt was made to send to a network/broadcast address as though it was a unicast
 		// 		address.
 		if errors.Is(err, syscall.EACCES) {
-			return models.ErrSendNoAccess
+			return n, models.ErrSendNoAccess
 		}
 
 
@@ -60,29 +82,29 @@ func trySend(socketFd int, data []byte) error {
 
 		// EBADF  sockfd is not a valid open file descriptor.
 		if errors.Is(err, syscall.EBADF) {
-			return models.ErrSocketBadFD
+			return n, models.ErrSocketBadFD
 		}
 
 		// ECONNRESET Connection reset by peer.
 		if errors.Is(err, syscall.ECONNRESET) {
-			return models.ErrConnectionReset
+			return n, models.ErrConnectionReset
 		}
 
 		// EDESTADDRREQ The socket is not connection-mode, and no peer address is set.
 
 		// EFAULT An invalid user space address was specified for an argument.
 		if errors.Is(err, syscall.EFAULT) {
-			return models.ErrSpaceAddress
+			return n, models.ErrSpaceAddress
 		}
 
 		// EINTR  A signal occurred before any data was transmitted; see signal(7).
 		if errors.Is(err, syscall.EINTR) {
-			return models.ErrSignalInterruption
+			return n, models.ErrSignalInterruption
 		}
 
 		// EINVAL Invalid argument passed.
 		if errors.Is(err, syscall.EINVAL) {
-			return models.ErrBadValue
+			return n, models.ErrBadValue
 		}
 
 		// EISCONN
@@ -100,17 +122,17 @@ func trySend(socketFd int, data []byte) error {
 
 		// ENOMEM No memory available.
 		if errors.Is(err, syscall.ENOMEM) {
-			return models.ErrNoMemory
+			return n, models.ErrNoMemory
 		}
 
 		// ENOTCONN The socket is not connected, and no target has been given.
 		if errors.Is(err, syscall.ENOTCONN) {
-			return models.ErrNotConnected
+			return n, models.ErrNotConnected
 		}
 
 		// ENOTSOCK The file descriptor sockfd does not refer to a socket.
 		if errors.Is(err, syscall.ENOTSOCK) {
-			return models.ErrSocketBadFD
+			return n, models.ErrSocketBadFD
 		}
 
 		// EOPNOTSUPP Some bit in the flags argument is inappropriate for the socket type.
@@ -118,15 +140,15 @@ func trySend(socketFd int, data []byte) error {
 		// EPIPE  The  local end has been shut down on a connection oriented socket.  In this case, the process will also
 		// 		receive a SIGPIPE unless MSG_NOSIGNAL is set
 		if errors.Is(err, syscall.EPIPE) {
-			return models.ErrConnectionClosed
+			return n, models.ErrConnectionClosed
 		}
 
 		
-		return fmt.Errorf("sending err: %w", err)
+		return n, fmt.Errorf("sending err: %w", err)
 	}
 	if n != len(data) {
-		return models.ErrSendMsgTrunc
+		return n, models.ErrSendMsgTrunc
 	}
 	
-	return nil
+	return n, nil
 }
