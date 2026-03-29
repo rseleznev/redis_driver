@@ -9,14 +9,32 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-// Receive получает сообщение по указанному socket
-func Receive(socketFd, retriesAvailable int, recvBuf []byte) ([]byte, error) {
+type Receiver interface {
+	Receive() ([]byte, error)
+}
+
+type recv struct {
+	socketFd, retriesAvailable int
+	recvBuf []byte
+}
+
+func NewReceiver(socketFd int, opts models.Options) Receiver {
+	r := &recv{
+		socketFd: socketFd,
+		retriesAvailable: opts.RetryAmount,
+		recvBuf: make([]byte, opts.ReceiveBufAvgLen),
+	}
+
+	return r
+}
+
+func (r *recv) Receive() ([]byte, error) {
 	var result []byte
 	var err error
 	attempt := 1 // счетчик ретраев
 
 	for {
-		result, err = tryReceive(socketFd, recvBuf)
+		result, err = tryReceive(r.socketFd, r.recvBuf)
 		if err != nil {
 			if errors.Is(err, syscall.EWOULDBLOCK) {
 				epoll.Wait()
@@ -33,11 +51,11 @@ func Receive(socketFd, retriesAvailable int, recvBuf []byte) ([]byte, error) {
 
 			// В буфер получения влезло не все
 			if err == models.ErrRecvMsgTrunc {
-				// нужно сложить прочитанное в отдельный буфер и идти за оставшимися данными
+				return r.recvBuf, err
 			}
 
 			// делаем ретраи
-			if attempt < retriesAvailable {
+			if attempt < r.retriesAvailable {
 				attempt++
 				continue
 			} else {
@@ -48,7 +66,7 @@ func Receive(socketFd, retriesAvailable int, recvBuf []byte) ([]byte, error) {
 	}
 	
 	// Проверки события
-	err = epoll.ProcessEvent(socketFd)
+	err = epoll.ProcessEvent(r.socketFd)
 	if err != nil {
 		return nil, err
 	}

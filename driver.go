@@ -18,7 +18,7 @@ type Conn struct {
 	epollFd int
 	proto uint8 // версия протокола RESP
 
-	receiveBuf []byte // буфер получения
+	rcv message.Receiver
 	commandsChan chan models.Command // канал для входящих команд приложения
 }
 
@@ -39,11 +39,14 @@ func NewConn(opts models.Options) (*Conn, error) {
 		return nil, err
 	}
 
+	// Receiver
+	rcv := message.NewReceiver(socketFd, opts)
+
 	conn := &Conn{
 		Options: opts,
 		socketFd: socketFd,
 		epollFd: epollFd,
-		receiveBuf: make([]byte, opts.ReceiveBufAvgLen),
+		rcv: rcv,
 		commandsChan: make(chan models.Command),
 	}
 
@@ -73,10 +76,11 @@ func (c *Conn) Close() {
 func (c *Conn) process() {
 	for cmd := range c.commandsChan {
 		var data []byte
+		var err error
 
 		for {
 			// Отправляем команду
-			err := message.Send(c.socketFd, cmd.SendingData, c.RetryAmount)
+			err = message.Send(c.socketFd, cmd.SendingData, c.RetryAmount)
 			if err != nil {
 				if err == models.ErrConnectionClosed { // соединение закрыто, нужно переподключиться
 					// Создаем и подключаем новый сокет
@@ -89,10 +93,11 @@ func (c *Conn) process() {
 					continue
 				}
 				cmd.ErrChan <- err
+				break
 			}
 
 			// Читаем ответ
-			data, err = message.Receive(c.socketFd, c.RetryAmount, c.receiveBuf)
+			data, err = c.rcv.Receive()
 			if err != nil {
 				if errors.Is(err, models.ErrConnectionClosed) { // соединение закрыто, нужно переподключиться
 					// Создаем и подключаем новый сокет
@@ -104,6 +109,7 @@ func (c *Conn) process() {
 
 					continue
 				}
+
 				cmd.ErrChan <- err
 			}
 			break
