@@ -27,7 +27,7 @@ type Options struct {
 	// По умолчанию 100 МБ
 	ReceiveBufMaxLen int
 	// Средний размер, которого нужно придерживаться. По умолчанию равен ReceiveBufMinLen
-	ReceiveBufAvgLen int 
+	ReceiveBufAvgLen int
 }
 
 type Command struct {
@@ -47,4 +47,10 @@ type DOMPart struct {
 	Content []DOMPart // дочерние элементы (для составных типов)
 	
 	TotalBytesLen int // кол-во байтов (для расчета емкости итогового среза)
+}
+
+// Подумать над синхронизацией
+type SocketResult struct {
+	Result []byte
+	Err error
 }

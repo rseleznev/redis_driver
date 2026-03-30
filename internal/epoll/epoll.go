@@ -1,12 +1,21 @@
 package epoll
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
+	"sync"
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/models"
 )
+
+// Подумать над синхронизацией!
+type _epoll struct {
+	fd int
+	mux sync.Mutex
+	events []syscall.EpollEvent
+	sockets map[int]models.SocketResult
+}
 
 // События, которые хотим отслеживать
 // !в пуле будет больше одного сокета
