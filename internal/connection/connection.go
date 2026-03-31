@@ -37,12 +37,14 @@ func New(opts models.Options) (int, error) {
 
 			}
 
-			// Делаем ретраи
-			if attempt < opts.RetryAmount {
-				attempt++
-				continue
-			} else {
-				return 0, models.ErrConnectionRetriesFailed
+			if errors.Is(err, syscall.EAGAIN) {
+				// Делаем ретраи
+				if attempt < opts.RetryAmount {
+					attempt++
+					continue
+				} else {
+					return 0, models.ErrConnectionRetriesFailed
+				}
 			}
 		}
 
