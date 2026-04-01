@@ -4,7 +4,7 @@ import (
 	"errors"
 	"syscall"
 
-	"github.com/rseleznev/redis_driver/internal/epoll"
+	"github.com/rseleznev/redis_driver/internal/polling"
 	"github.com/rseleznev/redis_driver/internal/models"
 	"github.com/rseleznev/redis_driver/internal/connection/socket"
 )
@@ -18,7 +18,7 @@ func New(opts models.Options) (int, error) {
 	}
 
 	// Ставим на отслеживание первичное событие
-	err = epoll.InitEventForSocket(socketFd)
+	err = polling.InitEventForSocket(socketFd)
 	if err != nil {
 		return 0, err
 	}
@@ -49,10 +49,10 @@ func New(opts models.Options) (int, error) {
 		}
 
 		// Ждем результат
-		epoll.Wait()
+		polling.Wait()
 
 		// Проверка события
-		err = epoll.ProcessEvent(socketFd)
+		err = polling.ProcessEvent(socketFd)
 		if err != nil {
 			// Проверяем ошибки, при которых нет смысла делать ретраи
 			if errors.Is(err, syscall.ECONNREFUSED) {
@@ -82,7 +82,7 @@ func New(opts models.Options) (int, error) {
 	}
 
 	// Ставим на отслеживание входящие события
-	err = epoll.AddIncomeEventForSocket(socketFd)
+	err = polling.AddIncomeEventForSocket(socketFd)
 	if err != nil {
 		return 0, err
 	}
@@ -96,7 +96,7 @@ func Reconnect(opts models.Options, oldSocketFd int) (int, error) {
 	syscall.Close(oldSocketFd)
 	
 	// // Удаляем события закрытого сокета из списка отслеживания
-	// err := epoll.DeleteEventsForSocket(oldSocketFd)
+	// err := polling.DeleteEventsForSocket(oldSocketFd)
 	// if err != nil {
 	// 	return 0, err
 	// }

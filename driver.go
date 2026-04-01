@@ -5,7 +5,7 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/connection"
-	"github.com/rseleznev/redis_driver/internal/epoll"
+	"github.com/rseleznev/redis_driver/internal/polling"
 	"github.com/rseleznev/redis_driver/internal/message"
 	"github.com/rseleznev/redis_driver/internal/models"
 )
@@ -28,7 +28,7 @@ func NewConn(opts models.Options) (*Conn, error) {
 	
 	// Создаем epoll
 	// В будущем не нужно будет создавать отдельный epoll для каждого соединения
-	epollFd, err := epoll.New()
+	epollFd, err := polling.New()
 	if err != nil {
 		return nil, err
 	}

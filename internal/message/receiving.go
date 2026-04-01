@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/rseleznev/redis_driver/internal/epoll"
+	"github.com/rseleznev/redis_driver/internal/polling"
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
@@ -19,7 +19,7 @@ func Receive(socketFd, retriesAvailable int, recvBuf []byte) ([]byte, error) {
 		result, err = tryReceive(socketFd, recvBuf)
 		if err != nil {
 			if errors.Is(err, syscall.EWOULDBLOCK) {
-				epoll.Wait()
+				polling.Wait()
 				continue
 			}
 			
@@ -48,7 +48,7 @@ func Receive(socketFd, retriesAvailable int, recvBuf []byte) ([]byte, error) {
 	}
 	
 	// Проверки события
-	err = epoll.ProcessEvent(socketFd)
+	err = polling.ProcessEvent(socketFd)
 	if err != nil {
 		return nil, err
 	}

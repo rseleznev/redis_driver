@@ -1,4 +1,4 @@
-package epoll
+package polling
 
 import (
 	"errors"

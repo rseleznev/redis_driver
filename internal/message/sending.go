@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/rseleznev/redis_driver/internal/epoll"
+	"github.com/rseleznev/redis_driver/internal/polling"
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
@@ -19,7 +19,7 @@ func Send(socketFd int, data []byte, retriesAvailable int) error {
 		sentBytes, err = trySend(socketFd, data)
 		if err != nil {
 			if errors.Is(err, syscall.EWOULDBLOCK) {
-				epoll.Wait()
+				polling.Wait()
 				continue
 			}
 
