@@ -25,6 +25,7 @@ type epoll struct {
 // создание
 // должен создаваться в единственном экземпляре (sync.Once?)
 var (
+	epollFd int
 	epollInstance *epoll
 	once sync.Once
 	epollErr error
@@ -33,7 +34,7 @@ var (
 func NewPoller() (Epoller, error) {
 	once.Do(func() {
 		epollFd, epollErr = syscall.EpollCreate(1)
-		if epollErr == nil {
+		if epollErr == nil { // в случае ошибки придется перезапускать основное приложение
 			epollInstance = &epoll{
 				fd: epollFd,
 				mu: sync.Mutex{},
@@ -114,6 +115,7 @@ func (e *epoll) wait() {
 				e.polling = false
 				e.mu.Unlock()
 				e.processEvents()
+				
 				break
 			}
 			e.mu.Unlock()
@@ -141,8 +143,6 @@ func (e *epoll) processEvents() {
 // События, которые хотим отслеживать
 // !в пуле будет больше одного сокета
 var WaitingEvents = make([]syscall.EpollEvent, 1)
-
-var epollFd int // epoll всегда будет один независимо от кол-ва соединений
 
 // New создает новый инстанс epoll
 func New() (int, error) {
