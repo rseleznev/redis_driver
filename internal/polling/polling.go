@@ -9,13 +9,134 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-// Подумать над синхронизацией!
-type _epoll struct {
-	fd int
-	mux sync.Mutex
-	events []syscall.EpollEvent
-	sockets map[int]models.SocketResult
+type Epoller interface {
+	Add(models.PollingUnit) error
 }
+
+// Подумать над синхронизацией!
+type epoll struct {
+	fd int
+	mu sync.Mutex
+	polling bool
+	events []syscall.EpollEvent
+	sockets map[int]models.PollingUnit
+}
+
+// создание
+// должен создаваться в единственном экземпляре (sync.Once?)
+var (
+	epollInstance *epoll
+	once sync.Once
+	epollErr error
+)
+
+func NewPoller() (Epoller, error) {
+	once.Do(func() {
+		epollFd, epollErr = syscall.EpollCreate(1)
+		if epollErr == nil {
+			epollInstance = &epoll{
+				fd: epollFd,
+				mu: sync.Mutex{},
+			}
+		}
+	})
+	if epollErr != nil {
+		// EINVAL size is not positive.
+		// EINVAL (epoll_create1()) Invalid value specified in flags.
+
+		// EMFILE The per-user limit on the number of epoll instances  imposed  by  /proc/sys/fs/epoll/max_user_instances
+		// 		was encountered.  See epoll(7) for further details.
+		// EMFILE The per-process limit on the number of open file descriptors has been reached.
+		if errors.Is(epollErr, syscall.EMFILE) {
+			return nil, models.ErrTooManyFilesInProcess
+		}
+
+		// ENFILE The system-wide limit on the total number of open files has been reached.
+		if errors.Is(epollErr, syscall.ENFILE) {
+			return nil, models.ErrTooManyFilesInSystem
+		}
+
+		// ENOMEM There was insufficient memory to create the kernel object.
+		if errors.Is(epollErr, syscall.ENOMEM) {
+			return nil, models.ErrPollNoMemory
+		}
+		
+		return nil, fmt.Errorf("polling creation err: %w", epollErr)
+	}
+
+	return epollInstance, nil
+}
+
+// добавление события в очередь
+func (e *epoll) Add(unit models.PollingUnit) error {
+	e.mu.Lock()
+
+	defer e.mu.Unlock()
+
+	// проверка, нет ли у нас уже указанного сокета
+	if _, ok := e.sockets[unit.SocketFd]; ok {
+		return models.ErrSocketAlreadyAdded // вызывающий поток должен подождать, когда обработает текущее событие
+	}
+	e.sockets[unit.SocketFd] = unit
+
+	// добавляем нужное событие в epoll_ctl и событие в events
+	switch unit.EventType {
+	case "connect":
+	case "income":
+	case "outcome":
+
+	default:
+		return models.ErrPollUnknownEventType
+
+	}
+
+	// проверка, происходит ли поллинг. Если да - конец
+	// Если нет - запускаем его (не получится ли так, что несколько потоков запустят несколько вызовов?)
+	if e.polling == false {
+		e.polling = true
+		go e.wait()
+	}
+
+	return nil
+}
+
+func (e *epoll) wait() {
+	for {
+		n, err := syscall.EpollWait(e.fd, e.events, 0)
+		if err != nil {
+			fmt.Println("epoll wait err: ", err)
+			break
+		}
+		if n > 0 { // Пришли какие-то события
+			e.mu.Lock()
+
+			if n == len(e.sockets) { // готовы все ожидаемые сокеты
+				e.polling = false
+				e.mu.Unlock()
+				e.processEvents()
+				break
+			}
+			e.mu.Unlock()
+			go e.processEvents()
+		}
+	}
+}
+
+func (e *epoll) processEvents() {
+	// проверяем все события в events
+
+	// проверяем полученное событие
+
+	// в sockets находим канал ждущего потока
+
+	// удаляем из events и sockets
+
+	// возвращаем результат ждущему потоку
+}
+
+
+
+// ------------------------------------------------
 
 // События, которые хотим отслеживать
 // !в пуле будет больше одного сокета
@@ -44,7 +165,7 @@ func New() (int, error) {
 
 		// ENOMEM There was insufficient memory to create the kernel object.
 		if errors.Is(err, syscall.ENOMEM) {
-			return 0, models.ErrEpollNoMemory
+			return 0, models.ErrPollNoMemory
 		}
 		
 		return 0, fmt.Errorf("epoll creation err: %w", err)
@@ -178,7 +299,7 @@ func ProcessEvent(socketFd int) error {
 func handleEpollError(err error) error {
 	// EBADF  epfd or fd is not a valid file descriptor.
 	if errors.Is(err, syscall.EBADF) {
-		return models.ErrEpollBadFD
+		return models.ErrPollBadFD
 	}
 
 	// EEXIST op was EPOLL_CTL_ADD, and the supplied file descriptor fd is already registered  with  this  epoll  in‐

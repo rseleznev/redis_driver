@@ -5,14 +5,16 @@ import (
 )
 
 var (
-	// epoll
+	// polling
 	ErrSocketEvent = errors.New("redis_driver: error event has happened on socket") // EPOLLERR event
 	ErrSocketHUPEvent = errors.New("redis_driver: HUP error event has happened on socket") // EPOLLHUP event
 	ErrSocketRDHUPEvent = errors.New("redis_driver: RDHUP error event has happened on socket") // EPOLLRDHUP event
-	ErrEpollNoMemory = errors.New("redis_driver: not enought memory available to create an epoll instance") // ENOMEM
-	ErrEpollBadFD = errors.New("redis_driver: epoll file descriptor or socket file descriptor is not a valid file descriptor") // EBADF
+	ErrPollNoMemory = errors.New("redis_driver: not enought memory available to create an epoll instance") // ENOMEM
+	ErrPollBadFD = errors.New("redis_driver: epoll file descriptor or socket file descriptor is not a valid file descriptor") // EBADF
 	ErrSocketAlreadyAdded = errors.New("redis_driver: socket already in interest list") // EEXIST
 	ErrSocketNotAdded = errors.New("redis_driver: socket not added in interest list") // ENOENT
+	ErrPollUnknownEventType = errors.New("redis_driver: unknown event type for polling")
+	ErrPollAlreadyExists = errors.New("redis_driver: poller already exists")
 
 	// socket
 	ErrSocketNoAccess = errors.New("redis_driver: no access to socket") // EACCES
