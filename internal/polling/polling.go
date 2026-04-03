@@ -11,6 +11,7 @@ import (
 
 type Epoller interface {
 	Add(models.PollingUnit) error
+	GetError() error
 }
 
 type epoll struct {
@@ -19,6 +20,7 @@ type epoll struct {
 	polling bool // флаг, запущен ли поллинг
 	events []syscall.EpollEvent // события, за которыми следим
 	sockets map[int]models.PollingUnit // сокеты. которые процессим, здесь же канал для возврата результата
+	err error
 }
 
 // создание
@@ -108,7 +110,7 @@ func (e *epoll) wait() {
 	for {
 		n, err := syscall.EpollWait(e.fd, e.events, 0)
 		if err != nil {
-			fmt.Println("epoll wait err: ", err)
+			e.setError(err)
 			break
 		}
 		if n > 0 { // Пришли какие-то события
@@ -137,6 +139,14 @@ func (e *epoll) processEvents() {
 	// удаляем из events и sockets
 
 	// возвращаем результат ждущему потоку
+}
+
+func (e *epoll) setError(err error) {
+	e.err = err
+}
+
+func (e *epoll) GetError() error {
+	return e.err
 }
 
 
