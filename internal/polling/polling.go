@@ -157,9 +157,9 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 	defer e.mu.Unlock()
 
-	readySockets := make(map[int]int, readySocketsLen)
+	readySockets := make(map[int]models.PollingResult, readySocketsLen)
 
-	for i := 0; i < len(e.events); i++ {
+	for i := 0; i < e.eventsLen(); i++ {
 		var errs []error
 		socketFd := int(e.events[i].Fd)
 
@@ -181,9 +181,12 @@ func (e *epoll) processEvents(readySocketsLen int) {
 			errs = append(errs, models.ErrSocketRDHUPEvent)
 		}
 
-		// если по сокету есть ошибки, группируем их и отправляем ждущему потоку
+		// если по сокету есть ошибки, группируем их и закидываем в результирующий словарь
 		if len(errs) > 0 {
-			e.getSocketResultChan(socketFd) <- errors.Join(errs...)
+			readySockets[socketFd] = models.PollingResult{
+				EventIndex: i,
+				Err: errors.Join(errs...),
+			}
 
 			continue
 		}
@@ -191,22 +194,32 @@ func (e *epoll) processEvents(readySocketsLen int) {
 		// проверяем корректные события
 		if e.events[i].Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
 			if e.getSocketEventType(socketFd) == "income" { // если ждем именно это событие
-				readySockets[socketFd] = i
+				readySockets[socketFd] = models.PollingResult{
+					EventIndex: i,
+				}
 
 				continue
 			}
 		}
 		if e.events[i].Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
 			if e.getSocketEventType(socketFd) == "outcome" { // если ждем именно это событие
-				readySockets[socketFd] = i
+				readySockets[socketFd] = models.PollingResult{
+					EventIndex: i,
+				}
 
 				continue
 			}
 		}
 	}
 
-	for s := range readySockets {
-		e.getSocketResultChan(s) <- nil // сообщаем, что по сокету нет ошибок. Ждущий поток может продолжить свое выполнение
+	if len(readySockets) != readySocketsLen {
+		e.setError(errors.New("not all expected sockets are ready"))
+	}
+
+	for s, v := range readySockets {
+		e.getSocketResultChan(s) <- v.Err // возвращаем результат. Ждущий поток может продолжить свое выполнение
+
+		e.deleteEpollEvent(v.EventIndex) // удаляем событие, чтобы оно не попало в вызов wait
 	}
 }
 
@@ -247,6 +260,10 @@ func (e *epoll) stopPolling() {
 
 func (e *epoll) pollingLen() int {
 	return len(e.sockets)
+}
+
+func (e *epoll) eventsLen() int {
+	return len(e.events)
 }
 
 func (e *epoll) newOutcomeEvent(socketFd int) syscall.EpollEvent {
@@ -295,6 +312,18 @@ func (e *epoll) getSocketResultChan(socketFd int) chan error {
 
 func (e *epoll) getSocketEventType(socketFd int) string {
 	return e.sockets[socketFd].EventType
+}
+
+func (e *epoll) deleteEpollEvent(index int) { //index 2, len 4
+	newEvents := make([]syscall.EpollEvent, e.eventsLen()-1)
+
+	// копируем начало
+	copy(newEvents, e.events[:index])
+
+	// копируем конец
+	copy(newEvents[index:], e.events[index+1:])
+
+	e.events = newEvents
 }
 
 // ------------------------------------------------

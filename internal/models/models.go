@@ -57,6 +57,6 @@ type PollingUnit struct {
 }
 
 type PollingResult struct {
-	ReceivedData []byte // вернется ссылка на тот же самый буфер получения
+	EventIndex int
 	Err error
 }
