@@ -53,9 +53,7 @@ type DOMPart struct {
 type PollingUnit struct {
 	SocketFd int
 	EventType string // connect, income, outcome
-	SendingData []byte // ссылка на буфер отправки
-	ReceivingBuf []byte // ссылка на буфер получения
-	ResultChan chan PollingResult // канал, чтобы вызывающий поток заблокировался на чтении
+	ResultChan chan error // канал, чтобы вызывающий поток заблокировался на чтении
 }
 
 type PollingResult struct {
