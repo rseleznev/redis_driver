@@ -15,12 +15,20 @@ type Epoller interface {
 }
 
 type epoll struct {
-	fd int // файловый дескриптор инстанса epoll
+	// файловый дескриптор инстанса epoll
+	fd int
+
 	mu sync.Mutex
-	polling bool // флаг, запущен ли поллинг
-	events []syscall.EpollEvent // события, за которыми следим
-	sockets map[int]models.PollingUnit // сокеты. которые процессим, здесь же канал для возврата результата
 	err error
+
+	// флаг, запущен ли поллинг
+	polling bool
+
+	// события, за которыми следим
+	events []syscall.EpollEvent
+
+	// сокеты, которые процессим и канал для возврата результата
+	sockets map[int]models.PollingUnit
 }
 
 // создание
@@ -143,69 +151,58 @@ func (e *epoll) wait() {
 	}
 }
 
-func (e *epoll) processEvents(readySocketsLen int) { // на вход приходит кол-во готовых сокетов, а не их номера
+// processEvents обрабатывает полученные события, находит готовые сокеты и возвращает результаты ждущим потокам
+func (e *epoll) processEvents(readySocketsLen int) {
 	e.mu.Lock()
 
 	defer e.mu.Unlock()
 
-	readySockets := map[int]bool{}
-	
-	// проверяем готовые сокеты
-	for range readySocketsLen {
+	readySockets := make(map[int]int, readySocketsLen)
 
-		// проверяем все события в events, ищем сокеты, по которым есть события
-		for _, v := range e.events {
-			var errs []error
-			socketFd := int(v.Fd)
-			
-			// пытаемся получить ошибку по сокету
-			_, err := syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
-			if err != nil {
-				errs = append(errs, err)
+	for i := 0; i < len(e.events); i++ {
+		var errs []error
+		socketFd := int(e.events[i].Fd)
+
+		// пытаемся получить ошибку по сокету
+		_, err := syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
+		if err != nil {
+			errs = append(errs, err)
+		}
+
+		// Проверяем полученное событие
+		// проверяем на наличие событий с ошибками
+		if e.events[i].Events & syscall.EPOLLERR != 0 { // ошибка
+			errs = append(errs, models.ErrSocketEvent)
+		}
+		if e.events[i].Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
+			errs = append(errs, models.ErrSocketHUPEvent)
+		}
+		if e.events[i].Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
+			errs = append(errs, models.ErrSocketRDHUPEvent)
+		}
+
+		// если по сокету есть ошибки, группируем их и отправляем ждущему потоку
+		if len(errs) > 0 {
+			e.getSocketResultChan(socketFd) <- errors.Join(errs...)
+
+			continue
+		}
+
+		// проверяем корректные события
+		if e.events[i].Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
+			if e.getSocketEventType(socketFd) == "income" { // если ждем именно это событие
+				readySockets[socketFd] = i
+
+				continue
 			}
+		}
+		if e.events[i].Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
+			if e.getSocketEventType(socketFd) == "outcome" { // если ждем именно это событие
+				readySockets[socketFd] = i
 
-			// Проверяем полученное событие
-			// проверяем на наличие событий с ошибками
-			if v.Events & syscall.EPOLLERR != 0 { // ошибка
-				errs = append(errs, models.ErrSocketEvent)
+				continue
 			}
-			if v.Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
-				errs = append(errs, models.ErrSocketHUPEvent)
-			}
-			if v.Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
-				errs = append(errs, models.ErrSocketRDHUPEvent)
-			}
-
-			// если по сокету есть ошибки, группируем их и отправляем ждущему потоку
-			if len(errs) > 0 {
-				e.getSocketResultChan(socketFd) <- errors.Join(errs...)
-				readySockets[socketFd] = true
-
-				// так же нужно удалять событие из e.events, чтобы повторно его не обрабатывать
-
-				break
-			}
-
-			// проверяем корректные события
-			if v.Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
-				if e.getSocketEventType(socketFd) == "income" { // если ждем именно это событие
-					readySockets[socketFd] = true
-
-					// так же нужно удалять событие из e.events, чтобы повторно его не обрабатывать
-
-					break
-				}
-			}
-			if v.Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
-				if e.getSocketEventType(socketFd) == "outcome" { // если ждем именно это событие
-					readySockets[socketFd] = true
-
-					// так же нужно удалять событие из e.events, чтобы повторно его не обрабатывать
-
-					break
-				}
-			}
-		}	
+		}
 	}
 
 	for s := range readySockets {
@@ -223,7 +220,7 @@ func (e *epoll) GetError() error {
 
 
 // ------------------------------------------------
-// Методы, которые должны вызывать только из под захваченного мьютекса
+// Методы, которые должны вызывать только под захваченным мьютексом
 
 func (e *epoll) isSocketInProcess(socketFd int) bool {
 	if _, ok := e.sockets[socketFd]; ok {
