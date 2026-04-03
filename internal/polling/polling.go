@@ -80,18 +80,32 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 	if e.isSocketInProcess(unit.SocketFd) {
 		return models.ErrSocketAlreadyAdded // вызывающий поток должен подождать, когда обработается текущее событие
 	}
-	e.addSocketInProcess(unit)
 
 	// добавляем нужное событие в epoll_ctl и событие в events
 	switch unit.EventType {
+	// хотим получить результат подключения к серверу
 	case "connect":
+		err := e.addConnectEvent(unit.SocketFd)
+		if err != nil {
+			return err
+		}
+
+	// хотим получить входящее сообщение
 	case "income":
+		err := e.addIncomeEvent(unit.SocketFd)
+		if err != nil {
+			return err
+		}
+
+	// хотим узнать результат отправки своего сообщения
 	case "outcome":
 
 	default:
 		return models.ErrPollUnknownEventType
 
 	}
+
+	e.addSocketInProcess(unit)
 
 	// проверка, происходит ли поллинг. Если да - конец
 	// Если нет - запускаем его (не получится ли так, что несколько потоков запустят несколько вызовов?)
@@ -178,6 +192,46 @@ func (e *epoll) stopPolling() {
 
 func (e *epoll) pollingLen() int {
 	return len(e.sockets)
+}
+
+func (e *epoll) newOutcomeEvent(socketFd int) syscall.EpollEvent {
+	return syscall.EpollEvent{
+		Events: syscall.EPOLLOUT,
+		Fd: int32(socketFd),
+		Pad: 0, // узнать, что это
+	}
+}
+
+func (e *epoll) newIncomeEvent(socketFd int) syscall.EpollEvent {
+	return syscall.EpollEvent{
+		Events: syscall.EPOLLIN,
+		Fd: int32(socketFd),
+		Pad: 0, // узнать, что это
+	}
+}
+
+func (e *epoll) addConnectEvent(socketFd int) error {
+	event := e.newOutcomeEvent(socketFd)
+	
+	err := syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, socketFd, &event)
+	if err != nil {
+		return handleEpollError(err) // переделать на метод
+	}
+	e.events = append(e.events, event) // вынести в отдельный метод?
+	
+	return nil
+}
+
+func (e *epoll) addIncomeEvent(socketFd int) error {
+	event := e.newIncomeEvent(socketFd)
+
+	err := syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_MOD, socketFd, &event)
+	if err != nil {
+		return handleEpollError(err) // переделать на метод
+	}
+	e.events = append(e.events, event) // вынести в отдельный метод?
+	
+	return nil
 }
 
 // ------------------------------------------------
