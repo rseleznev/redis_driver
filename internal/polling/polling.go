@@ -13,17 +13,17 @@ type Epoller interface {
 	Add(models.PollingUnit) error
 }
 
-// Подумать над синхронизацией!
 type epoll struct {
-	fd int
+	fd int // файловый дескриптор инстанса epoll
 	mu sync.Mutex
-	polling bool
-	events []syscall.EpollEvent
-	sockets map[int]models.PollingUnit
+	polling bool // флаг, запущен ли поллинг
+	events []syscall.EpollEvent // события, за которыми следим
+	sockets map[int]models.PollingUnit // сокеты. которые процессим, здесь же канал для возврата результата
 }
 
 // создание
 // должен создаваться в единственном экземпляре (sync.Once?)
+// может лучше перенести sync.Once выше по стеку вызовов?
 var (
 	epollFd int
 	epollInstance *epoll
@@ -68,17 +68,17 @@ func NewPoller() (Epoller, error) {
 	return epollInstance, nil
 }
 
-// добавление события в очередь
+// Add добавляет событие (юнит), которое нужно процессить
 func (e *epoll) Add(unit models.PollingUnit) error {
 	e.mu.Lock()
 
 	defer e.mu.Unlock()
 
 	// проверка, нет ли у нас уже указанного сокета
-	if _, ok := e.sockets[unit.SocketFd]; ok {
-		return models.ErrSocketAlreadyAdded // вызывающий поток должен подождать, когда обработает текущее событие
+	if e.isSocketInProcess(unit.SocketFd) {
+		return models.ErrSocketAlreadyAdded // вызывающий поток должен подождать, когда обработается текущее событие
 	}
-	e.sockets[unit.SocketFd] = unit
+	e.addSocketInProcess(unit)
 
 	// добавляем нужное событие в epoll_ctl и событие в events
 	switch unit.EventType {
@@ -93,14 +93,17 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 
 	// проверка, происходит ли поллинг. Если да - конец
 	// Если нет - запускаем его (не получится ли так, что несколько потоков запустят несколько вызовов?)
-	if e.polling == false {
-		e.polling = true
+	if !e.isPolling() {
+		e.startPolling()
 		go e.wait()
 	}
 
 	return nil
 }
 
+// wait делает системный вызов epoll_wait с нулевым таймаутом
+//
+// Крутится, пока не получит события по всем ждущим сокетам
 func (e *epoll) wait() {
 	for {
 		n, err := syscall.EpollWait(e.fd, e.events, 0)
@@ -111,8 +114,8 @@ func (e *epoll) wait() {
 		if n > 0 { // Пришли какие-то события
 			e.mu.Lock()
 
-			if n == len(e.sockets) { // готовы все ожидаемые сокеты
-				e.polling = false
+			if n == e.pollingLen() { // готовы все ожидаемые сокеты
+				e.stopPolling()
 				e.mu.Unlock()
 				e.processEvents()
 				
@@ -137,6 +140,35 @@ func (e *epoll) processEvents() {
 }
 
 
+// ------------------------------------------------
+// Методы, которые должны вызывать только из под захваченного мьютекса
+
+func (e *epoll) isSocketInProcess(socketFd int) bool {
+	if _, ok := e.sockets[socketFd]; ok {
+		return true
+	}
+	return false
+}
+
+func (e *epoll) addSocketInProcess(unit models.PollingUnit) {
+	e.sockets[unit.SocketFd] = unit
+}
+
+func (e *epoll) isPolling() bool {
+	return e.polling
+}
+
+func (e *epoll) startPolling() {
+	e.polling = true
+}
+
+func (e *epoll) stopPolling() {
+	e.polling = false
+}
+
+func (e *epoll) pollingLen() int {
+	return len(e.sockets)
+}
 
 // ------------------------------------------------
 
