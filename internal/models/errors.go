@@ -15,6 +15,7 @@ var (
 	ErrSocketNotAdded = errors.New("redis_driver: socket not added in interest list") // ENOENT
 	ErrPollUnknownEventType = errors.New("redis_driver: unknown event type for polling")
 	ErrPollAlreadyExists = errors.New("redis_driver: poller already exists")
+	ErrPollDiffEventType = errors.New("redis_driver: different event type received")
 
 	// socket
 	ErrSocketNoAccess = errors.New("redis_driver: no access to socket") // EACCES

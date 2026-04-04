@@ -184,6 +184,9 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 				continue
 			}
+			readySockets[socketFd] = models.PollingResult{
+				Err: models.ErrPollDiffEventType,
+			}
 		}
 		if e.events[i].Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
 			if e.getSocketEventType(socketFd) == "outcome" { // если ждем именно это событие
@@ -191,11 +194,14 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 				continue
 			}
+			readySockets[socketFd] = models.PollingResult{
+				Err: models.ErrPollDiffEventType,
+			}
 		}
 	}
 
 	if len(readySockets) != readySocketsLen {
-		e.setError(errors.New("not all expected sockets are ready"))
+		e.setError(errors.New("not all expected sockets are ready")) // возможно не нужно проверять
 	}
 
 	for s, v := range readySockets {
