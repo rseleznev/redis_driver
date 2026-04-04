@@ -29,6 +29,8 @@ type epoll struct {
 
 	// сокеты, которые процессим и канал для возврата результата
 	sockets map[int]models.PollingUnit
+
+	sys epollSyscalls
 }
 
 func NewPoller() (Epoller, error) {
@@ -60,6 +62,7 @@ func NewPoller() (Epoller, error) {
 	return &epoll{
 		fd: eFd,
 		mu: sync.Mutex{},
+		sys: epollRealSyscalls{},
 	}, nil
 }
 
@@ -120,7 +123,7 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 // Крутится, пока не получит события по всем ждущим сокетам
 func (e *epoll) wait() {
 	for {
-		n, err := syscall.EpollWait(e.fd, e.events, 0)
+		n, err := e.sys.Wait(e.fd, e.events, 0)
 		if err != nil {
 			e.setError(err)
 			e.pushError()
@@ -155,7 +158,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 		socketFd := int(e.events[i].Fd)
 
 		// пытаемся получить ошибку по сокету
-		_, err := syscall.GetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
+		_, err := e.sys.GetSocketOpt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -285,7 +288,7 @@ func (e *epoll) newIncomeEvent(socketFd int) syscall.EpollEvent {
 func (e *epoll) addConnectEvent(socketFd int) error {
 	event := e.newOutcomeEvent(socketFd)
 	
-	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_ADD, socketFd, &event)
+	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_ADD, socketFd, &event)
 	if err != nil {
 		return e.handleEpollError(err)
 	}
@@ -297,7 +300,7 @@ func (e *epoll) addConnectEvent(socketFd int) error {
 func (e *epoll) addIncomeEvent(socketFd int) error {
 	event := e.newIncomeEvent(socketFd)
 
-	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
+	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
 	if err != nil {
 		return e.handleEpollError(err)
 	}
@@ -309,7 +312,7 @@ func (e *epoll) addIncomeEvent(socketFd int) error {
 func (e *epoll) addOutcomeEvent(socketFd int) error {
 	event := e.newOutcomeEvent(socketFd)
 
-	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
+	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
 	if err != nil {
 		return e.handleEpollError(err)
 	}
@@ -379,7 +382,3 @@ func (e *epoll) handleEpollError(err error) error {
 
 	return fmt.Errorf("epoll_ctl err: %w", err)
 }
-
-
-
-// ------------------------------------------------
