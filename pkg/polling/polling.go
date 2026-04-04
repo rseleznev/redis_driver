@@ -19,7 +19,7 @@ type epoll struct {
 	fd int
 
 	mu sync.Mutex
-	err error
+	err error // возможно лишнее
 
 	// флаг, запущен ли поллинг
 	polling bool
@@ -32,7 +32,7 @@ type epoll struct {
 }
 
 func NewPoller() (Epoller, error) {
-	eFD, err := syscall.EpollCreate(1)
+	eFd, err := syscall.EpollCreate(1)
 	if err != nil {
 		// EINVAL size is not positive.
 		// EINVAL (epoll_create1()) Invalid value specified in flags.
@@ -58,7 +58,7 @@ func NewPoller() (Epoller, error) {
 	}
 
 	return &epoll{
-		fd: eFD,
+		fd: eFd,
 		mu: sync.Mutex{},
 	}, nil
 }
@@ -69,7 +69,7 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 
 	defer e.mu.Unlock()
 
-	// проверка, нет ли у нас уже указанного сокета
+	// проверка, нет ли у нас переданного сокета в обработке
 	if e.isSocketInProcess(unit.SocketFd) {
 		return models.ErrSocketAlreadyAdded // вызывающий поток должен подождать, когда обработается текущее событие
 	}
@@ -102,7 +102,7 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 	e.addSocketInProcess(unit)
 
 	// проверка, происходит ли поллинг. Если да - конец
-	// Если нет - запускаем его (не получится ли так, что несколько потоков запустят несколько вызовов?)
+	// Если нет - запускаем его
 	if !e.isPolling() {
 		e.startPolling()
 		go e.wait()
@@ -222,10 +222,8 @@ func (e *epoll) GetError() error {
 // Методы, которые должны вызывать только под захваченным мьютексом
 
 func (e *epoll) isSocketInProcess(socketFd int) bool {
-	if _, ok := e.sockets[socketFd]; ok {
-		return true
-	}
-	return false
+	_, ok := e.sockets[socketFd]
+	return ok
 }
 
 func (e *epoll) addSocketInProcess(unit models.PollingUnit) {
@@ -275,7 +273,7 @@ func (e *epoll) addConnectEvent(socketFd int) error {
 	if err != nil {
 		return handleEpollError(err) // переделать на метод
 	}
-	e.events = append(e.events, event) // вынести в отдельный метод?
+	e.addEpollEvent(event)
 	
 	return nil
 }
@@ -287,7 +285,7 @@ func (e *epoll) addIncomeEvent(socketFd int) error {
 	if err != nil {
 		return handleEpollError(err) // переделать на метод
 	}
-	e.events = append(e.events, event) // вынести в отдельный метод?
+	e.addEpollEvent(event)
 	
 	return nil
 }
@@ -298,6 +296,10 @@ func (e *epoll) getSocketResultChan(socketFd int) chan error {
 
 func (e *epoll) getSocketEventType(socketFd int) string {
 	return e.sockets[socketFd].EventType
+}
+
+func (e *epoll) addEpollEvent(event syscall.EpollEvent) {
+	e.events = append(e.events, event)
 }
 
 // после удаления одного события поменяются индексы!!!
