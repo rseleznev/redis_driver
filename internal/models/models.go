@@ -57,6 +57,5 @@ type PollingUnit struct {
 }
 
 type PollingResult struct {
-	EventIndex int
 	Err error
 }
