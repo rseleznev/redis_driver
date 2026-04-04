@@ -212,6 +212,17 @@ func (e *epoll) GetError() error {
 	return e.err
 }
 
+// pushError информирует все ждущие потоки о глобальной ошибке epoll
+func (e *epoll) pushError() {
+	e.mu.Lock()
+
+	defer e.mu.Unlock()
+
+	for s := range e.sockets {
+		e.getSocketResultChan(s) <- e.GetError()
+	}
+}
+
 
 // ------------------------------------------------
 // Методы, которые должны вызываться только под захваченным мьютексом
@@ -308,12 +319,7 @@ func (e *epoll) deleteCompletedEpollEvents(readySockets map[int]models.PollingRe
 	e.events = newEvents
 }
 
-// pushError информирует все ждущие потоки о глобальной ошибке epoll
-func (e *epoll) pushError() {
-	for s := range e.sockets {
-		e.getSocketResultChan(s) <- e.GetError()
-	}
-}
+
 
 // ------------------------------------------------
 
