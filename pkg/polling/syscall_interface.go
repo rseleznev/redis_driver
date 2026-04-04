@@ -3,17 +3,12 @@ package polling
 import "syscall"
 
 type epollSyscalls interface {
-	New(int) (int, error)
 	Wait(int, []syscall.EpollEvent, int) (int, error)
 	GetSocketOpt(int, int, int) (int, error)
 	Ctl(int, int, int, *syscall.EpollEvent) error
 }
 
 type epollRealSyscalls struct {}
-
-func (es epollRealSyscalls) New(size int) (int, error) {
-	return syscall.EpollCreate(size)
-}
 
 func (es epollRealSyscalls) Wait(eFd int, events []syscall.EpollEvent, timeout int) (int, error) {
 	return syscall.EpollWait(eFd, events, timeout)

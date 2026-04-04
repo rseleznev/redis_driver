@@ -62,6 +62,7 @@ func NewPoller() (Epoller, error) {
 	return &epoll{
 		fd: eFd,
 		mu: sync.Mutex{},
+		sockets: map[int]models.PollingUnit{},
 		sys: epollRealSyscalls{},
 	}, nil
 }
@@ -196,7 +197,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 			}
 		}
 		if e.events[i].Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
-			if e.getSocketEventType(socketFd) == "outcome" { // если ждем именно это событие
+			if e.getSocketEventType(socketFd) == "outcome" || e.getSocketEventType(socketFd) == "connect" { // если ждем именно это событие
 				readySockets[socketFd] = models.PollingResult{}
 
 				continue
