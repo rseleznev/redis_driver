@@ -93,6 +93,10 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 
 	// хотим узнать результат отправки своего сообщения
 	case "outcome":
+		err := e.addOutcomeEvent(unit.SocketFd)
+		if err != nil {
+			return err
+		}
 
 	default:
 		return models.ErrPollUnknownEventType
@@ -292,6 +296,18 @@ func (e *epoll) addConnectEvent(socketFd int) error {
 
 func (e *epoll) addIncomeEvent(socketFd int) error {
 	event := e.newIncomeEvent(socketFd)
+
+	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
+	if err != nil {
+		return e.handleEpollError(err)
+	}
+	e.addEpollEvent(event)
+	
+	return nil
+}
+
+func (e *epoll) addOutcomeEvent(socketFd int) error {
+	event := e.newOutcomeEvent(socketFd)
 
 	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
 	if err != nil {
