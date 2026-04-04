@@ -31,51 +31,36 @@ type epoll struct {
 	sockets map[int]models.PollingUnit
 }
 
-// создание
-// должен создаваться в единственном экземпляре (sync.Once?)
-// может лучше перенести sync.Once выше по стеку вызовов?
-var (
-	epollFd int
-	epollInstance *epoll
-	once sync.Once
-	epollErr error
-)
-
 func NewPoller() (Epoller, error) {
-	once.Do(func() {
-		epollFd, epollErr = syscall.EpollCreate(1)
-		if epollErr == nil { // в случае ошибки придется перезапускать основное приложение
-			epollInstance = &epoll{
-				fd: epollFd,
-				mu: sync.Mutex{},
-			}
-		}
-	})
-	if epollErr != nil {
+	eFD, err := syscall.EpollCreate(1)
+	if err != nil {
 		// EINVAL size is not positive.
 		// EINVAL (epoll_create1()) Invalid value specified in flags.
 
 		// EMFILE The per-user limit on the number of epoll instances  imposed  by  /proc/sys/fs/epoll/max_user_instances
 		// 		was encountered.  See epoll(7) for further details.
 		// EMFILE The per-process limit on the number of open file descriptors has been reached.
-		if errors.Is(epollErr, syscall.EMFILE) {
+		if errors.Is(err, syscall.EMFILE) {
 			return nil, models.ErrTooManyFilesInProcess
 		}
 
 		// ENFILE The system-wide limit on the total number of open files has been reached.
-		if errors.Is(epollErr, syscall.ENFILE) {
+		if errors.Is(err, syscall.ENFILE) {
 			return nil, models.ErrTooManyFilesInSystem
 		}
 
 		// ENOMEM There was insufficient memory to create the kernel object.
-		if errors.Is(epollErr, syscall.ENOMEM) {
+		if errors.Is(err, syscall.ENOMEM) {
 			return nil, models.ErrPollNoMemory
 		}
 		
-		return nil, fmt.Errorf("polling creation err: %w", epollErr)
+		return nil, fmt.Errorf("polling creation err: %w", err)
 	}
 
-	return epollInstance, nil
+	return &epoll{
+		fd: eFD,
+		mu: sync.Mutex{},
+	}, nil
 }
 
 // Add добавляет событие (юнит), которое нужно процессить
@@ -286,7 +271,7 @@ func (e *epoll) newIncomeEvent(socketFd int) syscall.EpollEvent {
 func (e *epoll) addConnectEvent(socketFd int) error {
 	event := e.newOutcomeEvent(socketFd)
 	
-	err := syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_ADD, socketFd, &event)
+	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_ADD, socketFd, &event)
 	if err != nil {
 		return handleEpollError(err) // переделать на метод
 	}
@@ -298,7 +283,7 @@ func (e *epoll) addConnectEvent(socketFd int) error {
 func (e *epoll) addIncomeEvent(socketFd int) error {
 	event := e.newIncomeEvent(socketFd)
 
-	err := syscall.EpollCtl(epollFd, syscall.EPOLL_CTL_MOD, socketFd, &event)
+	err := syscall.EpollCtl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
 	if err != nil {
 		return handleEpollError(err) // переделать на метод
 	}
@@ -333,6 +318,7 @@ func (e *epoll) deleteEpollEvent(index int) {
 // События, которые хотим отслеживать
 // !в пуле будет больше одного сокета
 var WaitingEvents = make([]syscall.EpollEvent, 1)
+var epollFd int
 
 // New создает новый инстанс epoll
 func New() (int, error) {
