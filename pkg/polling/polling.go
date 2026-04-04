@@ -119,6 +119,7 @@ func (e *epoll) wait() {
 		n, err := syscall.EpollWait(e.fd, e.events, 0)
 		if err != nil {
 			e.setError(err)
+			e.pushError()
 			break
 		}
 		if n > 0 { // Пришли какие-то события
@@ -305,6 +306,13 @@ func (e *epoll) deleteCompletedEpollEvents(readySockets map[int]models.PollingRe
 		}
 	}
 	e.events = newEvents
+}
+
+// pushError информирует все ждущие потоки о глобальной ошибке epoll
+func (e *epoll) pushError() {
+	for s := range e.sockets {
+		e.getSocketResultChan(s) <- e.GetError()
+	}
 }
 
 // ------------------------------------------------
