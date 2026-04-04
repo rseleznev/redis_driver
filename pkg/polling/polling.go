@@ -170,7 +170,6 @@ func (e *epoll) processEvents(readySocketsLen int) {
 		// если по сокету есть ошибки, группируем их и закидываем в результирующий словарь
 		if len(errs) > 0 {
 			readySockets[socketFd] = models.PollingResult{
-				EventIndex: i,
 				Err: errors.Join(errs...),
 			}
 
@@ -180,18 +179,14 @@ func (e *epoll) processEvents(readySocketsLen int) {
 		// проверяем корректные события
 		if e.events[i].Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
 			if e.getSocketEventType(socketFd) == "income" { // если ждем именно это событие
-				readySockets[socketFd] = models.PollingResult{
-					EventIndex: i,
-				}
+				readySockets[socketFd] = models.PollingResult{}
 
 				continue
 			}
 		}
 		if e.events[i].Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
 			if e.getSocketEventType(socketFd) == "outcome" { // если ждем именно это событие
-				readySockets[socketFd] = models.PollingResult{
-					EventIndex: i,
-				}
+				readySockets[socketFd] = models.PollingResult{}
 
 				continue
 			}
@@ -204,9 +199,8 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 	for s, v := range readySockets {
 		e.getSocketResultChan(s) <- v.Err // возвращаем результат. Ждущий поток может продолжить свое выполнение
-
-		e.deleteEpollEvent(v.EventIndex) // удаляем событие, чтобы оно не попало в вызов wait
 	}
+	e.deleteCompletedEpollEvents(readySockets) // удаляем завершенные события
 }
 
 func (e *epoll) setError(err error) {
@@ -219,7 +213,7 @@ func (e *epoll) GetError() error {
 
 
 // ------------------------------------------------
-// Методы, которые должны вызывать только под захваченным мьютексом
+// Методы, которые должны вызываться только под захваченным мьютексом
 
 func (e *epoll) isSocketInProcess(socketFd int) bool {
 	_, ok := e.sockets[socketFd]
@@ -302,16 +296,14 @@ func (e *epoll) addEpollEvent(event syscall.EpollEvent) {
 	e.events = append(e.events, event)
 }
 
-// после удаления одного события поменяются индексы!!!
-func (e *epoll) deleteEpollEvent(index int) {
-	newEvents := make([]syscall.EpollEvent, e.eventsLen()-1)
-
-	// копируем начало
-	copy(newEvents, e.events[:index])
-
-	// копируем конец
-	copy(newEvents[index:], e.events[index+1:])
-
+func (e *epoll) deleteCompletedEpollEvents(readySockets map[int]models.PollingResult) {
+	newEvents := make([]syscall.EpollEvent, 0, e.eventsLen()-len(readySockets))
+	
+	for _, v := range e.events {
+		if _, ok := readySockets[int(v.Fd)]; !ok {
+			newEvents = append(newEvents, v)
+		}
+	}
 	e.events = newEvents
 }
 
