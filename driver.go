@@ -5,7 +5,7 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/connection"
-	"github.com/rseleznev/redis_driver/internal/polling"
+	"github.com/rseleznev/redis_driver/pkg/polling"
 	"github.com/rseleznev/redis_driver/internal/message"
 	"github.com/rseleznev/redis_driver/internal/models"
 )

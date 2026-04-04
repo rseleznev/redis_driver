@@ -91,14 +91,15 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 
 	// добавляем нужное событие в epoll_ctl и событие в events
 	switch unit.EventType {
-	// хотим получить результат подключения к серверу
+
+	// хотим узнать результат подключения к серверу
 	case "connect":
 		err := e.addConnectEvent(unit.SocketFd)
 		if err != nil {
 			return err
 		}
 
-	// хотим получить входящее сообщение
+	// хотим узнать факт получения входящего сообщения
 	case "income":
 		err := e.addIncomeEvent(unit.SocketFd)
 		if err != nil {
@@ -314,7 +315,8 @@ func (e *epoll) getSocketEventType(socketFd int) string {
 	return e.sockets[socketFd].EventType
 }
 
-func (e *epoll) deleteEpollEvent(index int) { //index 2, len 4
+// после удаления одного события поменяются индексы!!!
+func (e *epoll) deleteEpollEvent(index int) {
 	newEvents := make([]syscall.EpollEvent, e.eventsLen()-1)
 
 	// копируем начало
