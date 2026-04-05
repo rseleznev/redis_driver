@@ -75,7 +75,7 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 	defer e.mu.Unlock()
 
 	// проверка, нет ли у нас переданного сокета в обработке
-	if e.isSocketInProcess(unit.SocketFd) {
+	if e.isSocketInPolling(unit.SocketFd) {
 		return models.ErrSocketAlreadyAdded // вызывающий поток должен подождать, когда обработается текущее событие
 	}
 
@@ -108,7 +108,7 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 
 	}
 
-	e.addSocketInProcess(unit)
+	e.addSocketInPolling(unit)
 
 	// проверка, происходит ли поллинг. Если да - конец
 	// Если нет - запускаем его
@@ -217,6 +217,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
 	for s, v := range readySockets {
 		e.getSocketResultChan(s) <- v.Err
+		e.deleteSocketFromPolling(s)
 	}
 	e.deleteCompletedEpollEvents(readySockets) // удаляем завершенные события
 }
@@ -244,13 +245,17 @@ func (e *epoll) pushError() {
 // ------------------------------------------------
 // Методы, которые должны вызываться только под захваченным мьютексом
 
-func (e *epoll) isSocketInProcess(socketFd int) bool {
+func (e *epoll) isSocketInPolling(socketFd int) bool {
 	_, ok := e.sockets[socketFd]
 	return ok
 }
 
-func (e *epoll) addSocketInProcess(unit models.PollingUnit) {
+func (e *epoll) addSocketInPolling(unit models.PollingUnit) {
 	e.sockets[unit.SocketFd] = unit
+}
+
+func (e *epoll) deleteSocketFromPolling(socketFd int) {
+	delete(e.sockets, socketFd)
 }
 
 func (e *epoll) isPolling() bool {
