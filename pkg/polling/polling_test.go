@@ -46,6 +46,7 @@ func TestAdd(t *testing.T) {
 		name string
 		expectedErr error
 		eventForPolling models.PollingUnit
+		mockSys mockSyscalls
 	}{
 		{
 			name: "success connect",
@@ -55,24 +56,63 @@ func TestAdd(t *testing.T) {
 				EventType: "connect",
 				ResultChan: make(chan error),
 			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "success income",
+			expectedErr: nil,
+			eventForPolling: models.PollingUnit{
+				SocketFd: 5,
+				EventType: "income",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "success outcome",
+			expectedErr: nil,
+			eventForPolling: models.PollingUnit{
+				SocketFd: 5,
+				EventType: "outcome",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
 		},
 	}
 
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			mockSys := mockSyscalls{
-				waitFunc: func(eFd int, event []syscall.EpollEvent, timeout int) (int, error) {
-					return 1, nil
-				},
-				getSocketOptFunc: func(i1, i2, i3 int) (int, error) {
-					return 0, nil
-				},
-				ctlFunc: func(i1, i2, i3 int, ee *syscall.EpollEvent) error {
-					return nil
-				},
-			}
-
-			testPoller.sys = &mockSys
+			testPoller.sys = &tt.mockSys
 
 			err := testPoller.Add(tt.eventForPolling)
 			if err != tt.expectedErr {
@@ -80,6 +120,11 @@ func TestAdd(t *testing.T) {
 			}
 
 			err = <-tt.eventForPolling.ResultChan
+			if err != tt.expectedErr {
+				t.Error(err)
+			}
+
+			err = testPoller.GetError()
 			if err != tt.expectedErr {
 				t.Error(err)
 			}
