@@ -27,9 +27,10 @@ type epoll struct {
 	// события, за которыми следим
 	events []syscall.EpollEvent
 
-	// сокеты, которые процессим и канал для возврата результата
+	// сокеты, которые поллим и канал для возврата результата
 	sockets map[int]models.PollingUnit
 
+	// интерфейс системных вызовов
 	sys epollSyscalls
 }
 
@@ -67,7 +68,7 @@ func NewPoller() (Epoller, error) {
 	}, nil
 }
 
-// Add добавляет событие (юнит), которое нужно процессить
+// Add добавляет событие (юнит), которое нужно поллить
 func (e *epoll) Add(unit models.PollingUnit) error {
 	e.mu.Lock()
 
@@ -208,12 +209,14 @@ func (e *epoll) processEvents(readySocketsLen int) {
 		}
 	}
 
+	// если произошла некая рассинхронизация или странная ситуация. Такого не должно происходить
 	if len(readySockets) != readySocketsLen {
-		e.setError(errors.New("not all expected sockets are ready")) // возможно не нужно проверять
+		e.setError(errors.New("not all expected sockets are ready")) // возможно не нужно, т.к. можем доловить в след вызове
 	}
 
+	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
 	for s, v := range readySockets {
-		e.getSocketResultChan(s) <- v.Err // возвращаем результат. Ждущий поток может продолжить свое выполнение
+		e.getSocketResultChan(s) <- v.Err
 	}
 	e.deleteCompletedEpollEvents(readySockets) // удаляем завершенные события
 }
