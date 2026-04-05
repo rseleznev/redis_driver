@@ -1,9 +1,11 @@
 package polling
 
 import (
+	"context"
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/rseleznev/redis_driver/internal/models"
 )
@@ -44,13 +46,20 @@ var testPoller = epoll{
 func TestAdd(t *testing.T) {
 	testData := []struct{
 		name string
-		expectedErr error
+		setUpFunc func()
+		cleanUpFunc func()
+		expectedMethodErr error
+		expectedChanErr error
+		expectedPollerErr error
 		eventForPolling models.PollingUnit
 		mockSys mockSyscalls
 	}{
 		{
 			name: "success connect",
-			expectedErr: nil,
+			expectedMethodErr: nil,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
+
 			eventForPolling: models.PollingUnit{
 				SocketFd: 5,
 				EventType: "connect",
@@ -70,7 +79,10 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "success income",
-			expectedErr: nil,
+			expectedMethodErr: nil,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
+
 			eventForPolling: models.PollingUnit{
 				SocketFd: 5,
 				EventType: "income",
@@ -90,7 +102,10 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "success outcome",
-			expectedErr: nil,
+			expectedMethodErr: nil,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
+
 			eventForPolling: models.PollingUnit{
 				SocketFd: 5,
 				EventType: "outcome",
@@ -108,25 +123,117 @@ func TestAdd(t *testing.T) {
 				},
 			},
 		},
-	}
+		{
+			name: "fail ErrSocketAlreadyAdded",
+			setUpFunc: func() {
+				testPoller.sockets[7] = models.PollingUnit{}
+			},
+			cleanUpFunc: func() {
+				delete(testPoller.sockets, 7)
+			},
+			expectedMethodErr: models.ErrSocketAlreadyAdded,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
 
+			eventForPolling: models.PollingUnit{
+				SocketFd: 7,
+				EventType: "outcome",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "fail ErrPollUnknownEventType",
+			expectedMethodErr: models.ErrPollUnknownEventType,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
+
+			eventForPolling: models.PollingUnit{
+				SocketFd: 5,
+				EventType: "test",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "fail ctl ErrPollBadFD",
+			expectedMethodErr: models.ErrPollBadFD,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
+
+			eventForPolling: models.PollingUnit{
+				SocketFd: 5,
+				EventType: "connect",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return syscall.EBADF
+				},
+			},
+		},
+	}
+	
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			testPoller.sys = &tt.mockSys
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*1)
+
+			if tt.setUpFunc != nil {
+				tt.setUpFunc()
+			}
 
 			err := testPoller.Add(tt.eventForPolling)
-			if err != tt.expectedErr {
+			if err != tt.expectedMethodErr {
 				t.Error(err)
 			}
 
-			err = <-tt.eventForPolling.ResultChan
-			if err != tt.expectedErr {
-				t.Error(err)
+			select {
+			case err = <-tt.eventForPolling.ResultChan:
+				if err != tt.expectedChanErr {
+					t.Error(err)
+				}
+
+			case <-ctx.Done():
+				t.Log("Вышли из select по таймауту")
+				
 			}
+
+			cancelFunc()
 
 			err = testPoller.GetError()
-			if err != tt.expectedErr {
+			if err != tt.expectedPollerErr {
 				t.Error(err)
+			}
+
+			if tt.cleanUpFunc != nil {
+				tt.cleanUpFunc()
 			}
 		})
 	}
