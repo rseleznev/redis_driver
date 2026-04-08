@@ -203,7 +203,6 @@ func TestAdd(t *testing.T) {
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			testPoller.sys = &tt.mockSys
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*1)
 
 			if tt.setUpFunc != nil {
 				tt.setUpFunc()
@@ -214,6 +213,8 @@ func TestAdd(t *testing.T) {
 				t.Error(err)
 			}
 
+			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*1)
+			
 			select {
 			case err = <-tt.eventForPolling.ResultChan:
 				if err != tt.expectedChanErr {
