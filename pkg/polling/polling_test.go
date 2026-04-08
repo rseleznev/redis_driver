@@ -146,10 +146,10 @@ func TestAdd(t *testing.T) {
 		{
 			name: "fail ErrSocketAlreadyAdded",
 			setUpFunc: func() {
-				testPoller.addSocketInPolling(models.PollingUnit{})
+				testPoller.sockets[7] = models.PollingUnit{}
 			},
 			cleanUpFunc: func() {
-				testPoller.deleteSocketFromPolling(7)
+				delete(testPoller.sockets, 7)
 			},
 			expectedMethodErr: models.ErrSocketAlreadyAdded,
 			expectedChanErr: nil,
@@ -263,6 +263,7 @@ func TestAdd(t *testing.T) {
 func Test_wait(t *testing.T) {
 	testData := []struct{
 		name string
+		setUpFunc func()
 		expectedChanErr error
 		expectedPollerErr error
 		eventForPolling models.PollingUnit
@@ -270,6 +271,12 @@ func Test_wait(t *testing.T) {
 	}{
 		{
 			name: "success",
+			setUpFunc: func() {
+				testPoller.eventsBuf[0] = syscall.EpollEvent{
+					Events: syscall.EPOLLOUT,
+					Fd: 1,
+				}
+			},
 			expectedChanErr: nil,
 			expectedPollerErr: nil,
 			eventForPolling: models.PollingUnit{
@@ -315,9 +322,11 @@ func Test_wait(t *testing.T) {
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			testPoller.sys = &tt.mockSys
-
-			testPoller.addOutcomeEvent(1)
 			testPoller.addSocketInPolling(tt.eventForPolling)
+
+			if tt.setUpFunc != nil {
+				tt.setUpFunc()
+			}
 
 			testPoller.wait()
 			err := <-tt.eventForPolling.ResultChan
