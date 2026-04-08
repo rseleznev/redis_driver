@@ -128,7 +128,8 @@ func (e *epoll) wait() {
 		n, err := e.sys.Wait(e.fd, e.events, 0)
 		if err != nil {
 			e.setError(err)
-			e.pushError()
+			go e.pushError()
+			
 			break
 		}
 		if n > 0 { // Пришли какие-то события
@@ -137,7 +138,7 @@ func (e *epoll) wait() {
 			if n == e.pollingLen() { // готовы все ожидаемые сокеты
 				e.stopPolling()
 				e.mu.Unlock()
-				e.processEvents(n)
+				go e.processEvents(n)
 				
 				break
 			}
