@@ -40,6 +40,8 @@ func (ms *mockSyscalls) Ctl(eFd, o, sFd int, event *syscall.EpollEvent) error {
 var testPoller = epoll{
 	fd: 2,
 	mu: sync.Mutex{},
+	eventsBuf: make([]syscall.EpollEvent, 5),
+	readyEvents: make([]syscall.EpollEvent, 0, 5),
 	sockets: map[int]models.PollingUnit{},
 }
 
@@ -56,6 +58,12 @@ func TestAdd(t *testing.T) {
 	}{
 		{
 			name: "success connect",
+			setUpFunc: func() {
+				testPoller.eventsBuf[0] = syscall.EpollEvent{
+					Events: syscall.EPOLLOUT,
+					Fd: 5,
+				}
+			},
 			expectedMethodErr: nil,
 			expectedChanErr: nil,
 			expectedPollerErr: nil,
@@ -79,6 +87,12 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "success income",
+			setUpFunc: func() {
+				testPoller.eventsBuf[0] = syscall.EpollEvent{
+					Events: syscall.EPOLLIN,
+					Fd: 5,
+				}
+			},
 			expectedMethodErr: nil,
 			expectedChanErr: nil,
 			expectedPollerErr: nil,
@@ -102,6 +116,12 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name: "success outcome",
+			setUpFunc: func() {
+				testPoller.eventsBuf[0] = syscall.EpollEvent{
+					Events: syscall.EPOLLOUT,
+					Fd: 5,
+				}
+			},
 			expectedMethodErr: nil,
 			expectedChanErr: nil,
 			expectedPollerErr: nil,
@@ -126,10 +146,10 @@ func TestAdd(t *testing.T) {
 		{
 			name: "fail ErrSocketAlreadyAdded",
 			setUpFunc: func() {
-				testPoller.sockets[7] = models.PollingUnit{}
+				testPoller.addSocketInPolling(models.PollingUnit{})
 			},
 			cleanUpFunc: func() {
-				delete(testPoller.sockets, 7)
+				testPoller.deleteSocketFromPolling(7)
 			},
 			expectedMethodErr: models.ErrSocketAlreadyAdded,
 			expectedChanErr: nil,
@@ -309,6 +329,22 @@ func Test_wait(t *testing.T) {
 			if err != tt.expectedPollerErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedPollerErr, err)
 			}
+		})
+	}
+}
+
+func Test_processEvents(t *testing.T) {
+	testData := []struct{
+		name string
+		expectedChanErr error
+		expectedPollerErr error
+		eventForPolling models.PollingUnit
+		mockSys mockSyscalls
+	}{}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+
 		})
 	}
 }

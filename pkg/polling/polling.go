@@ -24,8 +24,11 @@ type epoll struct {
 	// флаг, запущен ли поллинг
 	polling bool
 
-	// события, за которыми следим
-	events []syscall.EpollEvent
+	// буфер для готовых событий
+	eventsBuf []syscall.EpollEvent
+
+	// события, которые нужно обработать
+	readyEvents []syscall.EpollEvent
 
 	// сокеты, которые поллим и канал для возврата результата
 	sockets map[int]models.PollingUnit
@@ -63,6 +66,8 @@ func NewPoller() (Epoller, error) {
 	return &epoll{
 		fd: eFd,
 		mu: sync.Mutex{},
+		eventsBuf: make([]syscall.EpollEvent, 5),
+		readyEvents: make([]syscall.EpollEvent, 0, 5),
 		sockets: map[int]models.PollingUnit{},
 		sys: epollRealSyscalls{},
 	}, nil
@@ -120,30 +125,30 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 	return nil
 }
 
-// wait делает системный вызов epoll_wait с нулевым таймаутом
+// wait делает системный вызов epoll_wait
 //
 // Крутится, пока не получит события по всем ждущим сокетам
 func (e *epoll) wait() {
 	for {
-		n, err := e.sys.Wait(e.fd, e.events, 0)
+		n, err := e.sys.Wait(e.fd, e.eventsBuf, -1)
 		if err != nil {
 			e.setError(err)
 			go e.pushError()
-			
+
 			break
 		}
 		if n > 0 { // Пришли какие-то события
 			e.mu.Lock()
+			e.addReadyEvents(e.eventsBuf[:n])
+			go e.processEvents(n)
 
-			if n == e.pollingLen() { // готовы все ожидаемые сокеты
+			if n == e.pollingSocketsLen() { // готовы все ожидаемые сокеты
 				e.stopPolling()
 				e.mu.Unlock()
-				go e.processEvents(n)
 				
 				break
 			}
 			e.mu.Unlock()
-			go e.processEvents(n)
 		}
 	}
 }
@@ -156,9 +161,11 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 	readySockets := make(map[int]models.PollingResult, readySocketsLen)
 
-	for i := 0; i < e.eventsLen(); i++ {
+	// может быть проблема, когда по сокету что-то пришло, но никто не ждет
+
+	for _, v := range e.readyEvents {
 		var errs []error
-		socketFd := int(e.events[i].Fd)
+		socketFd := int(v.Fd)
 
 		// пытаемся получить ошибку по сокету
 		_, err := e.sys.GetSocketOpt(socketFd, syscall.SOL_SOCKET, syscall.SO_ERROR)
@@ -168,13 +175,13 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 		// Проверяем полученное событие
 		// проверяем на наличие событий с ошибками
-		if e.events[i].Events & syscall.EPOLLERR != 0 { // ошибка
+		if v.Events & syscall.EPOLLERR != 0 { // ошибка
 			errs = append(errs, models.ErrSocketEvent)
 		}
-		if e.events[i].Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
+		if v.Events & syscall.EPOLLHUP != 0 { // соединение закрыто сервером
 			errs = append(errs, models.ErrSocketHUPEvent)
 		}
-		if e.events[i].Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
+		if v.Events & syscall.EPOLLRDHUP != 0 { // сервер закрыл запись
 			errs = append(errs, models.ErrSocketRDHUPEvent)
 		}
 
@@ -188,7 +195,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 		}
 
 		// проверяем корректные события
-		if e.events[i].Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
+		if v.Events & syscall.EPOLLIN != 0 { // есть данные в буфере получения
 			if e.getSocketEventType(socketFd) == "income" { // если ждем именно это событие
 				readySockets[socketFd] = models.PollingResult{}
 
@@ -198,7 +205,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 				Err: models.ErrPollDiffEventType,
 			}
 		}
-		if e.events[i].Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
+		if v.Events & syscall.EPOLLOUT != 0 { // буфер отправки пуст
 			if e.getSocketEventType(socketFd) == "outcome" || e.getSocketEventType(socketFd) == "connect" { // если ждем именно это событие
 				readySockets[socketFd] = models.PollingResult{}
 
@@ -212,7 +219,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 	// если произошла некая рассинхронизация или странная ситуация. Такого не должно происходить
 	if len(readySockets) != readySocketsLen {
-		e.setError(errors.New("not all expected sockets are ready")) // возможно не нужно, т.к. можем доловить в след вызове
+		e.setError(errors.New("not all expected sockets are ready"))
 	}
 
 	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
@@ -220,7 +227,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 		e.getSocketResultChan(s) <- v.Err
 		e.deleteSocketFromPolling(s)
 	}
-	e.deleteCompletedEpollEvents(readySockets) // удаляем завершенные события
+	e.clearReadyEvents() // удаляем завершенные события
 }
 
 func (e *epoll) setError(err error) {
@@ -271,12 +278,8 @@ func (e *epoll) stopPolling() {
 	e.polling = false
 }
 
-func (e *epoll) pollingLen() int {
+func (e *epoll) pollingSocketsLen() int {
 	return len(e.sockets)
-}
-
-func (e *epoll) eventsLen() int {
-	return len(e.events)
 }
 
 func (e *epoll) newOutcomeEvent(socketFd int) syscall.EpollEvent {
@@ -302,7 +305,6 @@ func (e *epoll) addConnectEvent(socketFd int) error {
 	if err != nil {
 		return e.handleEpollError(err)
 	}
-	e.addEpollEvent(event)
 	
 	return nil
 }
@@ -314,7 +316,6 @@ func (e *epoll) addIncomeEvent(socketFd int) error {
 	if err != nil {
 		return e.handleEpollError(err)
 	}
-	e.addEpollEvent(event)
 	
 	return nil
 }
@@ -326,10 +327,11 @@ func (e *epoll) addOutcomeEvent(socketFd int) error {
 	if err != nil {
 		return e.handleEpollError(err)
 	}
-	e.addEpollEvent(event)
 	
 	return nil
 }
+
+// Подумать над удалением сокета из interest list через ctl.EPOLL_CTL_DEL
 
 func (e *epoll) getSocketResultChan(socketFd int) chan error {
 	return e.sockets[socketFd].ResultChan
@@ -339,19 +341,12 @@ func (e *epoll) getSocketEventType(socketFd int) string {
 	return e.sockets[socketFd].EventType
 }
 
-func (e *epoll) addEpollEvent(event syscall.EpollEvent) {
-	e.events = append(e.events, event)
+func (e *epoll) addReadyEvents(events []syscall.EpollEvent) {
+	e.readyEvents = append(e.readyEvents, events...)
 }
 
-func (e *epoll) deleteCompletedEpollEvents(readySockets map[int]models.PollingResult) {
-	newEvents := make([]syscall.EpollEvent, 0, e.eventsLen()-len(readySockets))
-	
-	for _, v := range e.events {
-		if _, ok := readySockets[int(v.Fd)]; !ok {
-			newEvents = append(newEvents, v)
-		}
-	}
-	e.events = newEvents
+func (e *epoll) clearReadyEvents() {
+	e.readyEvents = e.readyEvents[:0]
 }
 
 func (e *epoll) handleEpollError(err error) error {
