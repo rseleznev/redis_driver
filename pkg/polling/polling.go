@@ -246,8 +246,15 @@ func (e *epoll) setError(err error) {
 	e.err = err
 }
 
+func (e *epoll) deleteError() {
+	e.err = nil
+}
+
 func (e *epoll) GetError() error {
-	return e.err
+	err := e.err
+	e.deleteError()
+
+	return err
 }
 
 // pushError информирует все ждущие потоки о глобальной ошибке epoll
@@ -256,8 +263,10 @@ func (e *epoll) pushError() {
 
 	defer e.mu.Unlock()
 
+	err := e.GetError()
+
 	for s := range e.sockets {
-		e.getSocketResultChan(s) <- e.GetError()
+		e.getSocketResultChan(s) <- err
 	}
 }
 
