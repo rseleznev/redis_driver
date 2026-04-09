@@ -32,6 +32,8 @@ type epoll struct {
 
 	// сокеты, которые поллим и канал для возврата результата
 	sockets map[int]models.PollingUnit
+	// пришло неожиданное событие с ошибкой, когда никто не ждал
+	socketsUnexpErr map[int]error
 
 	// интерфейс системных вызовов
 	sys epollSyscalls
@@ -68,7 +70,8 @@ func NewPoller() (Epoller, error) {
 		mu: sync.Mutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
 		readyEvents: make([]syscall.EpollEvent, 0, 5),
-		sockets: map[int]models.PollingUnit{},
+		sockets: make(map[int]models.PollingUnit),
+		socketsUnexpErr: make(map[int]error),
 		sys: epollRealSyscalls{},
 	}, nil
 }
@@ -78,6 +81,12 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 	e.mu.Lock()
 
 	defer e.mu.Unlock()
+
+	// проверка, нет ли неожиданной ошибки по сокету
+	if err := e.getSocketUnexpErr(unit.SocketFd); err != nil {
+		e.deleteSocketUnexpErr(unit.SocketFd)
+		return err
+	}
 
 	// проверка, нет ли у нас переданного сокета в обработке
 	if e.isSocketInPolling(unit.SocketFd) {
@@ -161,8 +170,6 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 	readySockets := make(map[int]models.PollingResult, readySocketsLen)
 
-	// может быть проблема, когда по сокету что-то пришло, но никто не ждет
-
 	for _, v := range e.readyEvents {
 		var errs []error
 		socketFd := int(v.Fd)
@@ -224,7 +231,12 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
 	for s, v := range readySockets {
-		e.getSocketResultChan(s) <- v.Err
+		ch := e.getSocketResultChan(s)
+		if ch == nil {
+			e.setSocketUnexpErr(s, v.Err) // случай, когда пришла ошибка, которую никто не ждет
+		} else {
+			ch <- v.Err
+		}
 		e.deleteSocketFromPolling(s)
 	}
 	e.clearReadyEvents() // удаляем завершенные события
@@ -347,6 +359,18 @@ func (e *epoll) addReadyEvents(events []syscall.EpollEvent) {
 
 func (e *epoll) clearReadyEvents() {
 	e.readyEvents = e.readyEvents[:0]
+}
+
+func (e *epoll) setSocketUnexpErr(socketFd int, err error) {
+	e.socketsUnexpErr[socketFd] = err
+}
+
+func (e *epoll) getSocketUnexpErr(socketFd int) error {
+	return e.socketsUnexpErr[socketFd]
+}
+
+func (e *epoll) deleteSocketUnexpErr(socketFd int) {
+	delete(e.socketsUnexpErr, socketFd)
 }
 
 func (e *epoll) handleEpollError(err error) error {
