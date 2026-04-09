@@ -19,7 +19,7 @@ type epoll struct {
 	fd int
 
 	mu sync.Mutex
-	err error // возможно лишнее
+	err error
 
 	// флаг, запущен ли поллинг
 	polling bool
@@ -93,7 +93,7 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 		return models.ErrSocketAlreadyAdded // вызывающий поток должен подождать, когда обработается текущее событие
 	}
 
-	// добавляем нужное событие в epoll_ctl и событие в events
+	// добавляем нужное событие в epoll_ctl
 	switch unit.EventType {
 
 	// хотим узнать результат подключения к серверу
@@ -231,8 +231,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
 	for s, v := range readySockets {
-		ch := e.getSocketResultChan(s)
-		if ch == nil {
+		if ch := e.getSocketResultChan(s); ch == nil {
 			e.setSocketUnexpErr(s, v.Err) // случай, когда пришла ошибка, которую никто не ждет
 		} else {
 			ch <- v.Err

@@ -16,10 +16,10 @@ func (c *Conn) Ping() (string, error) {
 	}
 
 	cmd := models.Command{
-		Operation: "TEST",
+		Operation:   "TEST",
 		SendingData: pingCommand,
-		ResultChan: make(chan []byte),
-		ErrChan: make(chan error),
+		ResultChan:  make(chan []byte),
+		ErrChan:     make(chan error),
 	}
 
 	c.commandsChan <- cmd // блокировка, пока process не заберет команду
@@ -29,7 +29,6 @@ func (c *Conn) Ping() (string, error) {
 
 	select {
 	case data = <-cmd.ResultChan:
-
 
 	case err = <-cmd.ErrChan:
 		return "", err
@@ -58,10 +57,10 @@ func (c *Conn) Hello3() error {
 	}
 
 	cmd := models.Command{
-		Operation: "TEST",
+		Operation:   "TEST",
 		SendingData: helloCommand,
-		ResultChan: make(chan []byte),
-		ErrChan: make(chan error),
+		ResultChan:  make(chan []byte),
+		ErrChan:     make(chan error),
 	}
 
 	c.commandsChan <- cmd // блокировка, пока process не заберет команду
@@ -71,7 +70,6 @@ func (c *Conn) Hello3() error {
 
 	select {
 	case data = <-cmd.ResultChan:
-
 
 	case err = <-cmd.ErrChan:
 		return err
@@ -90,7 +88,7 @@ func (c *Conn) Hello3() error {
 	}
 	pv, _ := strconv.Atoi(result["proto"])
 	c.proto = uint8(pv)
-	
+
 	return nil
 }
 
@@ -112,10 +110,10 @@ func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 	}
 
 	cmd := models.Command{
-		Operation: "SET",
+		Operation:   "SET",
 		SendingData: setCommand,
-		ResultChan: make(chan []byte),
-		ErrChan: make(chan error),
+		ResultChan:  make(chan []byte),
+		ErrChan:     make(chan error),
 	}
 
 	c.commandsChan <- cmd // блокировка, пока process не заберет команду
@@ -125,7 +123,6 @@ func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 
 	select {
 	case data = <-cmd.ResultChan:
-
 
 	case err = <-cmd.ErrChan:
 		return err
@@ -138,7 +135,7 @@ func (c *Conn) SetValueForKey(key string, value any, duration int) error {
 	if err, ok := deserialized.(error); ok {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -152,10 +149,10 @@ func (c *Conn) GetValueByKey(key string) (any, error) {
 	}
 
 	cmd := models.Command{
-		Operation: "GET",
+		Operation:   "GET",
 		SendingData: getCommand,
-		ResultChan: make(chan []byte),
-		ErrChan: make(chan error),
+		ResultChan:  make(chan []byte),
+		ErrChan:     make(chan error),
 	}
 
 	c.commandsChan <- cmd // блокировка, пока process не заберет команду
@@ -165,7 +162,6 @@ func (c *Conn) GetValueByKey(key string) (any, error) {
 
 	select {
 	case data = <-cmd.ResultChan:
-
 
 	case err = <-cmd.ErrChan:
 		return nil, err
@@ -186,10 +182,10 @@ func (c *Conn) GetValueByKey(key string) (any, error) {
 func (c *Conn) incorrectTestCommand(input []byte) error {
 
 	cmd := models.Command{
-		Operation: "SET",
+		Operation:   "SET",
 		SendingData: input,
-		ResultChan: make(chan []byte),
-		ErrChan: make(chan error),
+		ResultChan:  make(chan []byte),
+		ErrChan:     make(chan error),
 	}
 
 	c.commandsChan <- cmd // блокировка, пока process не заберет команду

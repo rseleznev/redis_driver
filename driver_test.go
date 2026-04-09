@@ -16,8 +16,8 @@ func TestMain(m *testing.M) {
 	var err error
 
 	conn, err = NewConn(models.Options{
-		RedisIp: [4]byte{127, 0, 0, 1},
-		RedisPort: 6379,
+		RedisIp:     [4]byte{127, 0, 0, 1},
+		RedisPort:   6379,
 		RetryAmount: 3,
 	})
 	if err != nil {
@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 func TestPing(t *testing.T) {
 	t.Parallel()
 	t.Log("Запуск команды Ping")
-	
+
 	testPing, err := conn.Ping()
 	if err != nil {
 		t.Error("Ошибка в команде Ping: ", err)
@@ -44,7 +44,7 @@ func TestPing(t *testing.T) {
 func TestHello3(t *testing.T) {
 	t.Parallel()
 	t.Log("Запуск команды Hello3")
-	
+
 	err := conn.Hello3()
 	if err != nil {
 		t.Error("Ошибка в команде Hello3: ", err)
@@ -54,12 +54,12 @@ func TestHello3(t *testing.T) {
 
 func TestSetValueForKey(t *testing.T) {
 	t.Log("Запуск команды SetValueForKey")
-	
+
 	data := []struct {
-		testName string
-		key string
-		value any
-		duration int
+		testName    string
+		key         string
+		value       any
+		duration    int
 		expectedErr error
 	}{
 		{"success", "test", "value", 300, nil},
@@ -83,11 +83,11 @@ func TestGetValueByKey(t *testing.T) {
 	t.Log("Запуск команды GetValueByKey")
 
 	data := []struct {
-		testName string
-		key string
+		testName          string
+		key               string
 		expectedValueType string
-		expectedValue any
-		expectedErr error
+		expectedValue     any
+		expectedErr       error
 	}{
 		{"success", "test", "string", "value", nil},
 		{"successPermKey", "testPermKey", "string", "value2", nil},

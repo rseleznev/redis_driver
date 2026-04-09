@@ -5,27 +5,27 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/connection"
-	"github.com/rseleznev/redis_driver/pkg/polling"
 	"github.com/rseleznev/redis_driver/internal/message"
 	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/pkg/polling"
 )
 
 // Conn представляет собой одно соединение с сервером
 type Conn struct {
 	models.Options
-	
-	socketFd int
-	epollFd int
-	proto uint8 // версия протокола RESP
 
-	receiveBuf []byte // буфер получения
+	socketFd int
+	epollFd  int
+	proto    uint8 // версия протокола RESP
+
+	receiveBuf   []byte              // буфер получения
 	commandsChan chan models.Command // канал для входящих команд приложения
 }
 
 // NewConn создает новое соединение и подключается к нему
 func NewConn(opts models.Options) (*Conn, error) {
 	initOptions(&opts)
-	
+
 	// Создаем epoll
 	// В будущем не нужно будет создавать отдельный epoll для каждого соединения
 	epollFd, err := polling.New()
@@ -40,10 +40,10 @@ func NewConn(opts models.Options) (*Conn, error) {
 	}
 
 	conn := &Conn{
-		Options: opts,
-		socketFd: socketFd,
-		epollFd: epollFd,
-		receiveBuf: make([]byte, opts.ReceiveBufAvgLen),
+		Options:      opts,
+		socketFd:     socketFd,
+		epollFd:      epollFd,
+		receiveBuf:   make([]byte, opts.ReceiveBufAvgLen),
 		commandsChan: make(chan models.Command),
 	}
 
@@ -55,7 +55,7 @@ func NewConn(opts models.Options) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return conn, nil
 }
 
