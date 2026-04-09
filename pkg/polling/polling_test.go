@@ -42,7 +42,8 @@ var testPoller = epoll{
 	mu: sync.Mutex{},
 	eventsBuf: make([]syscall.EpollEvent, 5),
 	readyEvents: make([]syscall.EpollEvent, 0, 5),
-	sockets: map[int]models.PollingUnit{},
+	sockets: make(map[int]models.PollingUnit),
+	socketsUnexpErr: make(map[int]error),
 }
 
 func TestAdd(t *testing.T) {
@@ -128,6 +129,32 @@ func TestAdd(t *testing.T) {
 
 			eventForPolling: models.PollingUnit{
 				SocketFd: 5,
+				EventType: "outcome",
+				ResultChan: make(chan error),
+			},
+			mockSys: mockSyscalls{
+				waitFunc: func(_ int, _ []syscall.EpollEvent, _ int) (int, error) {
+					return 1, nil
+				},
+				getSocketOptFunc: func(_, _, _ int) (int, error) {
+					return 0, nil
+				},
+				ctlFunc: func(_, _, _ int, _ *syscall.EpollEvent) error {
+					return nil
+				},
+			},
+		},
+		{
+			name: "fail unexp socket err",
+			setUpFunc: func() {
+				testPoller.setSocketUnexpErr(7, models.ErrSocketEvent)
+			},
+			expectedMethodErr: models.ErrSocketEvent,
+			expectedChanErr: nil,
+			expectedPollerErr: nil,
+
+			eventForPolling: models.PollingUnit{
+				SocketFd: 7,
 				EventType: "outcome",
 				ResultChan: make(chan error),
 			},
