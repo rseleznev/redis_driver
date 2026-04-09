@@ -125,12 +125,12 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 	return nil
 }
 
-// wait делает системный вызов epoll_wait
+// wait делает системный вызов epoll_wait с нулевым таймаутом
 //
 // Крутится, пока не получит события по всем ждущим сокетам
 func (e *epoll) wait() {
 	for {
-		n, err := e.sys.Wait(e.fd, e.eventsBuf, -1)
+		n, err := e.sys.Wait(e.fd, e.eventsBuf, 0)
 		if err != nil {
 			e.setError(err)
 			go e.pushError()
