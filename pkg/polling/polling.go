@@ -226,7 +226,7 @@ func (e *epoll) processEvents(readySocketsLen int) {
 
 	// если произошла некая рассинхронизация или странная ситуация. Такого не должно происходить
 	if len(readySockets) != readySocketsLen {
-		e.setError(errors.New("not all expected sockets are ready"))
+		panic("not all expected sockets are ready")
 	}
 
 	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
