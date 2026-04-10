@@ -23,6 +23,14 @@ type connection struct {
 	recvBuf *models.RecvBuf
 }
 
-func (c *connection) GetSendBuf() *models.SendBuf
-func (c *connection) SendAndReceive(*models.SendBuf) (*models.RecvBuf, error)
-func (c *connection) DrainRecvBuf(*models.RecvBuf)
+func (c *connection) GetSendBuf() *models.SendBuf {
+	return c.sendBuf
+}
+
+func (c *connection) SendAndReceive(*models.SendBuf) (*models.RecvBuf, error) {
+	return c.recvBuf, nil
+}
+
+func (c *connection) DrainRecvBuf(*models.RecvBuf) {
+	
+}

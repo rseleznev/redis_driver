@@ -17,6 +17,11 @@ type Commander interface {
 	Get(context.Context, string) (any, error)
 }
 
+// processor - интерфейс процессора команд
+type processor interface {
+	sendAndReceive(cmd *command)
+}
+
 // commandProcessor обеспечивает отправку команды и получение результата
 type commandProcessor struct {
 	// абстракция над соединением (в будущем будет пул соединений)
@@ -76,7 +81,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 // ------------------------------------------------
 // commandBuilder формирует правильный срез аргументов конкретной команды
 type commandBuilder struct {
-	processor *commandProcessor
+	processor processor
 }
 
 // NewClient возвращает клиента, готового выполнять команды
@@ -106,6 +111,7 @@ type command struct {
 func (b *commandBuilder) Ping(ctx context.Context) error {
 	cmd := command{
 		args: make([]any, 0, 1),
+		resultValueChan: make(chan any),
 		resultErrChan: make(chan error),
 	}
 	cmd.args = append(cmd.args, "PING")
@@ -117,6 +123,9 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 			return err
 		}
 
+	case <-cmd.resultValueChan:
+		return nil
+
 	case <-ctx.Done():
 		return ctx.Err()
 
@@ -125,6 +134,14 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error)
-func (b *commandBuilder) Set(context.Context, string, any, time.Duration) error
-func (b *commandBuilder) Get(context.Context, string) (any, error)
+func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
+	return nil, nil
+}
+
+func (b *commandBuilder) Set(context.Context, string, any, time.Duration) error {
+	return nil
+}
+
+func (b *commandBuilder) Get(context.Context, string) (any, error) {
+	return nil, nil
+}

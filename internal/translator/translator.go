@@ -17,5 +17,10 @@ func NewDecoder() Decoder {
 	return translator{}
 }
 
-func (t translator) Encode([]byte, []any) ([]byte, error)
-func (t translator) Decode([]byte) (any, error)
+func (t translator) Encode([]byte, []any) ([]byte, error) {
+	return nil, nil
+}
+
+func (t translator) Decode([]byte) (any, error) {
+	return nil, nil
+}
