@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 )
@@ -63,6 +64,68 @@ func TestPing(t *testing.T) {
 			if err != tt.expectedErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
 			}	
+		})
+	}
+}
+
+func TestHello(t *testing.T) {
+	testData := []struct{
+		name string
+		expectedErr error
+		expectedResult map[string]string
+		mockProc mockProcessor
+	}{
+		{
+			name: "success",
+			expectedErr: nil,
+			expectedResult: map[string]string{
+				"test": "OK",
+			},
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c *command) {
+					c.resultValueChan <- map[string]string{
+						"test": "OK",
+					}
+				},
+			},
+		},
+		{
+			name: "fail err",
+			expectedErr: testErr,
+			expectedResult: nil,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c *command) {
+					c.resultErrChan <- testErr
+				},
+			},
+		},
+		{
+			name: "fail timeout",
+			expectedErr: context.DeadlineExceeded,
+			expectedResult: nil,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c *command) {
+					time.Sleep(time.Second*2)
+				},
+			},
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testBuilder.proc = &tt.mockProc
+			
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+			res, err := testBuilder.Hello(ctx)
+
+			defer cancel()
+
+			if err != tt.expectedErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
+			}
+			if !maps.Equal(res, tt.expectedResult) {
+				t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, res)
+			}
 		})
 	}
 }

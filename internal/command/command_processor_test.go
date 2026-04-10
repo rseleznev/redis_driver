@@ -254,7 +254,7 @@ func Test_sendAndReceive(t *testing.T) {
 
 			case res := <-tt.cmd.resultValueChan:
 				if res != tt.expectedResult {
-					t.Errorf("Ожидаемая результат %s, получено %s", tt.expectedResult, res)
+					t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, res)
 				}
 
 			}
