@@ -1,12 +1,17 @@
 package command
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
 var testProcessor = &commandProcessor{}
+
+var (
+	testErr = errors.New("test error")
+)
 
 type mockEnc struct{
 	encodeFunc func([]byte, []any) ([]byte, error)
@@ -57,7 +62,7 @@ func Test_sendAndReceive(t *testing.T) {
 		expectedResult any
 	}{
 		{
-			name: "success",
+			name: "success nil",
 			cmd: command{
 				resultValueChan: make(chan any),
 				resultErrChan: make(chan error),
@@ -89,6 +94,146 @@ func Test_sendAndReceive(t *testing.T) {
 				},
 			},
 			expectedErr: nil,
+			expectedResult: nil,
+		},
+		{
+			name: "success OK",
+			cmd: command{
+				resultValueChan: make(chan any),
+				resultErrChan: make(chan error),
+			},
+			conn: mockConn{
+				getSendBufFunc: func() *models.SendBuf {
+					return &models.SendBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 0, 20),
+					}
+				},
+				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
+					return &models.RecvBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 20),
+					}, nil
+				},
+				drainRecvBufFunc: func(rb *models.RecvBuf) {},
+			},
+			encoder: mockEnc{
+				encodeFunc: func(b []byte, a []any) ([]byte, error) {
+					testEncodedData := []byte{'T', 'E', 'S', 'T'}
+					return testEncodedData, nil
+				},
+			},
+			decoder: mockDec{
+				decodeFunc: func(b []byte) (any, error) {
+					return "OK", nil
+				},
+			},
+			expectedErr: nil,
+			expectedResult: "OK",
+		},
+		{
+			name: "fail encode",
+			cmd: command{
+				resultValueChan: make(chan any),
+				resultErrChan: make(chan error),
+			},
+			conn: mockConn{
+				getSendBufFunc: func() *models.SendBuf {
+					return &models.SendBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 0, 20),
+					}
+				},
+				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
+					return &models.RecvBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 20),
+					}, nil
+				},
+				drainRecvBufFunc: func(rb *models.RecvBuf) {},
+			},
+			encoder: mockEnc{
+				encodeFunc: func(b []byte, a []any) ([]byte, error) {
+					testEncodedData := []byte{'T', 'E', 'S', 'T'}
+					return testEncodedData, testErr
+				},
+			},
+			decoder: mockDec{
+				decodeFunc: func(b []byte) (any, error) {
+					return nil, nil
+				},
+			},
+			expectedErr: testErr,
+			expectedResult: nil,
+		},
+		{
+			name: "fail sendAndReceive",
+			cmd: command{
+				resultValueChan: make(chan any),
+				resultErrChan: make(chan error),
+			},
+			conn: mockConn{
+				getSendBufFunc: func() *models.SendBuf {
+					return &models.SendBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 0, 20),
+					}
+				},
+				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
+					return &models.RecvBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 20),
+					}, testErr
+				},
+				drainRecvBufFunc: func(rb *models.RecvBuf) {},
+			},
+			encoder: mockEnc{
+				encodeFunc: func(b []byte, a []any) ([]byte, error) {
+					testEncodedData := []byte{'T', 'E', 'S', 'T'}
+					return testEncodedData, nil
+				},
+			},
+			decoder: mockDec{
+				decodeFunc: func(b []byte) (any, error) {
+					return nil, nil
+				},
+			},
+			expectedErr: testErr,
+			expectedResult: nil,
+		},
+		{
+			name: "fail decode",
+			cmd: command{
+				resultValueChan: make(chan any),
+				resultErrChan: make(chan error),
+			},
+			conn: mockConn{
+				getSendBufFunc: func() *models.SendBuf {
+					return &models.SendBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 0, 20),
+					}
+				},
+				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
+					return &models.RecvBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 20),
+					}, nil
+				},
+				drainRecvBufFunc: func(rb *models.RecvBuf) {},
+			},
+			encoder: mockEnc{
+				encodeFunc: func(b []byte, a []any) ([]byte, error) {
+					testEncodedData := []byte{'T', 'E', 'S', 'T'}
+					return testEncodedData, nil
+				},
+			},
+			decoder: mockDec{
+				decodeFunc: func(b []byte) (any, error) {
+					return nil, testErr
+				},
+			},
+			expectedErr: testErr,
 			expectedResult: nil,
 		},
 	}
