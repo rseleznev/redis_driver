@@ -129,3 +129,40 @@ func TestHello(t *testing.T) {
 		})
 	}
 }
+
+func TestSet(t *testing.T) {
+	testData := []struct{
+		name, key string
+		value any
+		dur time.Duration
+		expectedErr error
+		mockProc mockProcessor
+	}{
+		{
+			name: "success no duration",
+			key: "test",
+			value: "OK",
+			expectedErr: nil,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c *command) {
+					c.resultErrChan <- nil
+				},
+			},
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testBuilder.proc = &tt.mockProc
+			
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+			err := testBuilder.Set(ctx, tt.key, tt.value, tt.dur)
+
+			defer cancel()
+
+			if err != tt.expectedErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
+			}
+		})
+	}
+}
