@@ -35,7 +35,7 @@ func TestPing(t *testing.T) {
 
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			testBuilder.processor = &tt.mockProc
+			testBuilder.proc = &tt.mockProc
 			
 			var err error
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)

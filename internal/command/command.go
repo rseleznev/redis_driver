@@ -17,7 +17,7 @@ type Commander interface {
 	Get(context.Context, string) (any, error)
 }
 
-// processor - интерфейс процессора команд
+// processor - интерфейс, который реализует отправку команды и получение результата или ошибки
 type processor interface {
 	sendAndReceive(cmd *command)
 }
@@ -81,7 +81,8 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 // ------------------------------------------------
 // commandBuilder формирует правильный срез аргументов конкретной команды
 type commandBuilder struct {
-	processor processor
+	// процессор команд (отправка и получение результата/ошибки)
+	proc processor
 }
 
 // NewClient возвращает клиента, готового выполнять команды
@@ -94,7 +95,7 @@ func NewClient(opts models.Options) (Commander, error) {
 	d := translator.NewDecoder()
 	
 	return &commandBuilder{
-		processor: &commandProcessor{
+		proc: &commandProcessor{
 			connector: c,
 			enc: e,
 			dec: d,
@@ -115,7 +116,7 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 		resultErrChan: make(chan error),
 	}
 	cmd.args = append(cmd.args, "PING")
-	b.processor.sendAndReceive(&cmd)
+	b.proc.sendAndReceive(&cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:
