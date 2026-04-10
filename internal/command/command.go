@@ -116,7 +116,7 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 		resultErrChan: make(chan error),
 	}
 	cmd.args = append(cmd.args, "PING")
-	b.proc.sendAndReceive(&cmd)
+	go b.proc.sendAndReceive(&cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:
@@ -142,7 +142,7 @@ func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
 		resultErrChan: make(chan error),
 	}
 	cmd.args = append(cmd.args, "HELLO", "3")
-	b.proc.sendAndReceive(&cmd)
+	go b.proc.sendAndReceive(&cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:

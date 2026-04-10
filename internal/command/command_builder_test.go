@@ -23,11 +23,29 @@ func TestPing(t *testing.T) {
 		mockProc mockProcessor
 	}{
 		{
-			name: "success Ping",
+			name: "success",
 			expectedErr: nil,
 			mockProc: mockProcessor{
 				sendAndReceiveFunc: func(c *command) {
 					c.resultValueChan <- nil
+				},
+			},
+		},
+		{
+			name: "fail err",
+			expectedErr: testErr,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c *command) {
+					c.resultErrChan <- testErr
+				},
+			},
+		},
+		{
+			name: "fail timeout",
+			expectedErr: context.DeadlineExceeded,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c *command) {
+					time.Sleep(time.Second*2)
 				},
 			},
 		},
@@ -37,12 +55,10 @@ func TestPing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testBuilder.proc = &tt.mockProc
 			
-			var err error
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-			go func() {
-				err = testBuilder.Ping(ctx)
-			}()
-			cancel()
+			err := testBuilder.Ping(ctx)
+
+			defer cancel()
 
 			if err != tt.expectedErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
