@@ -136,6 +136,33 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 }
 
 func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
+	cmd := command{
+		args: make([]any, 0, 2),
+		resultValueChan: make(chan any),
+		resultErrChan: make(chan error),
+	}
+	cmd.args = append(cmd.args, "HELLO", "3")
+	b.proc.sendAndReceive(&cmd)
+
+	select {
+	case err := <-cmd.resultErrChan:
+		if err != nil {
+			return nil, err
+		}
+
+	case r := <-cmd.resultValueChan:
+		res, ok := r.(map[string]string)
+		if !ok {
+			return nil, models.ErrDataAssert
+		}
+
+		return res, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	}
+	
 	return nil, nil
 }
 

@@ -23,7 +23,7 @@ func TestPing(t *testing.T) {
 		mockProc mockProcessor
 	}{
 		{
-			name: "success",
+			name: "success Ping",
 			expectedErr: nil,
 			mockProc: mockProcessor{
 				sendAndReceiveFunc: func(c *command) {
@@ -42,11 +42,11 @@ func TestPing(t *testing.T) {
 			go func() {
 				err = testBuilder.Ping(ctx)
 			}()
+			cancel()
+
 			if err != tt.expectedErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
-			}
-
-			cancel()		
+			}	
 		})
 	}
 }
