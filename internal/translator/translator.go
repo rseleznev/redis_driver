@@ -1,7 +1,7 @@
 package translator
 
 type Encoder interface {
-	Encode([]byte, []any) error
+	Encode([]byte, []any) ([]byte, error)
 }
 
 type Decoder interface {
@@ -17,5 +17,5 @@ func NewDecoder() Decoder {
 	return translator{}
 }
 
-func (t translator) Encode([]byte, []any) error
+func (t translator) Encode([]byte, []any) ([]byte, error)
 func (t translator) Decode([]byte) (any, error)

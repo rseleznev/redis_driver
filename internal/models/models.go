@@ -59,3 +59,15 @@ type PollingUnit struct {
 type PollingResult struct {
 	Err error
 }
+
+type SendBuf struct {
+	SocketFd int
+	Buf []byte
+	prevLen int
+}
+
+type RecvBuf struct {
+	SocketFd int
+	Buf []byte
+	prevLen int
+}

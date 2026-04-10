@@ -19,24 +19,55 @@ type Commander interface {
 
 // commandProcessor обеспечивает отправку команды и получение результата
 type commandProcessor struct {
-	id string
+	// абстракция над соединением (в будущем будет пул соединений)
 	connector connection.Connector
+
+	// кодировщик в формат RESP3
 	enc translator.Encoder
+
+	// декодировщик формата RESP3
 	dec translator.Decoder
 }
 
+// sendAndReceive осуществляет полный путь команды от сериализации до возврата результата
 func (p *commandProcessor) sendAndReceive(cmd *command) {
-	// Connector.GetSendBuf
+	// запрашиваем буфер для заполнения
+	sBuf := p.connector.GetSendBuf()
 
-	// Encoder.Encode
+	// кодируем в RESP
+	data, err := p.enc.Encode(sBuf.Buf, cmd.args)
+	if err != nil {
+		cmd.resultErrChan <- err
 
-	// Connector.SendAndReceive
+		return
+	}
+	sBuf.Buf = data
 
-	// Decoder.Decode
+	var rBuf *models.RecvBuf
 
-	// Connector.DrainRecvBuf
+	// отправляем команду и ждем результат
+	rBuf, err = p.connector.SendAndReceive(sBuf)
+	if err != nil {
+		cmd.resultErrChan <- err
 
-	// заполняем каналы cmd.resultValueChan и cmd.resultErrChan
+		return
+	}
+
+	var result any
+
+	// декодируем в объект Go
+	result, err = p.dec.Decode(rBuf.Buf)
+	if err != nil {
+		cmd.resultErrChan <- err
+
+		return
+	}
+
+	// сообщаем, что можно очистить буфер получения
+	p.connector.DrainRecvBuf(rBuf)
+
+	// возвращаем успешный результат
+	cmd.resultValueChan <- result
 }
 
 
@@ -50,7 +81,7 @@ type commandBuilder struct {
 
 // NewClient возвращает клиента, готового выполнять команды
 func NewClient(opts models.Options) (Commander, error) {
-	conn, err := connection.NewC(opts)
+	c, err := connection.NewC(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -59,8 +90,7 @@ func NewClient(opts models.Options) (Commander, error) {
 	
 	return &commandBuilder{
 		processor: &commandProcessor{
-			id: "1111", // надо генерировать или вообще убрать временно
-			connector: conn,
+			connector: c,
 			enc: e,
 			dec: d,
 		},
