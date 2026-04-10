@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/rseleznev/redis_driver/internal/connection"
@@ -120,9 +121,7 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 
 	select {
 	case err := <-cmd.resultErrChan:
-		if err != nil {
-			return err
-		}
+		return err
 
 	case <-cmd.resultValueChan:
 		return nil
@@ -131,8 +130,6 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 		return ctx.Err()
 
 	}
-
-	return nil
 }
 
 func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
@@ -146,9 +143,7 @@ func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
 
 	select {
 	case err := <-cmd.resultErrChan:
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 
 	case r := <-cmd.resultValueChan:
 		res, ok := r.(map[string]string)
@@ -162,12 +157,29 @@ func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
 		return nil, ctx.Err()
 
 	}
-	
-	return nil, nil
 }
 
-func (b *commandBuilder) Set(context.Context, string, any, time.Duration) error {
-	return nil
+func (b *commandBuilder) Set(ctx context.Context, key string, value any, duration time.Duration) error {
+	cmd := command{
+		args: make([]any, 0, 5),
+		resultValueChan: make(chan any),
+		resultErrChan: make(chan error),
+	}
+	cmd.args = append(cmd.args, "SET", key, value)
+	if duration > 0 {
+		ds := strconv.FormatInt(int64(duration), 10) // проверить, редис принимает секунды или миллисекунды
+		cmd.args = append(cmd.args, "EX", ds)
+	}
+	go b.proc.sendAndReceive(&cmd)
+
+	select {
+	case err := <-cmd.resultErrChan:
+		return err
+
+	case <-ctx.Done():
+		return ctx.Err()
+
+	}
 }
 
 func (b *commandBuilder) Get(context.Context, string) (any, error) {
