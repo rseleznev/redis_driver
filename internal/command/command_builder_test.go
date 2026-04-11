@@ -145,7 +145,43 @@ func TestSet(t *testing.T) {
 			expectedErr: nil,
 			mockProc: mockProcessor{
 				sendAndReceiveFunc: func(c command) {
-					c.resultErrChan <- nil
+					c.resultValueChan <- nil
+				},
+			},
+		},
+		{
+			name: "success with duration",
+			key: "test",
+			value: "OK",
+			dur: time.Second*1,
+			expectedErr: nil,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c command) {
+					c.resultValueChan <- nil
+				},
+			},
+		},
+		{
+			name: "fail err",
+			key: "test",
+			value: "ERR",
+			dur: time.Second*1,
+			expectedErr: testErr,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c command) {
+					c.resultErrChan <- testErr
+				},
+			},
+		},
+		{
+			name: "fail timeout",
+			key: "test",
+			value: "ERR",
+			dur: time.Second*1,
+			expectedErr: context.DeadlineExceeded,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c command) {
+					time.Sleep(time.Second*2)
 				},
 			},
 		},

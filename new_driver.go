@@ -21,6 +21,8 @@ type Client struct {
 }
 
 func NewClient(opts models.Options) (Client, error) {
+	initOptions(&opts)
+	
 	once.Do(func() {
 		epoll, epollErr = polling.NewEpoll()
 	})
