@@ -10,10 +10,10 @@ import (
 var testBuilder = &commandBuilder{}
 
 type mockProcessor struct {
-	sendAndReceiveFunc func(*command)
+	sendAndReceiveFunc func(command)
 }
 
-func (mp *mockProcessor) sendAndReceive(cmd *command) {
+func (mp *mockProcessor) sendAndReceive(cmd command) {
 	mp.sendAndReceiveFunc(cmd)
 }
 
@@ -27,7 +27,7 @@ func TestPing(t *testing.T) {
 			name: "success",
 			expectedErr: nil,
 			mockProc: mockProcessor{
-				sendAndReceiveFunc: func(c *command) {
+				sendAndReceiveFunc: func(c command) {
 					c.resultValueChan <- nil
 				},
 			},
@@ -36,7 +36,7 @@ func TestPing(t *testing.T) {
 			name: "fail err",
 			expectedErr: testErr,
 			mockProc: mockProcessor{
-				sendAndReceiveFunc: func(c *command) {
+				sendAndReceiveFunc: func(c command) {
 					c.resultErrChan <- testErr
 				},
 			},
@@ -45,7 +45,7 @@ func TestPing(t *testing.T) {
 			name: "fail timeout",
 			expectedErr: context.DeadlineExceeded,
 			mockProc: mockProcessor{
-				sendAndReceiveFunc: func(c *command) {
+				sendAndReceiveFunc: func(c command) {
 					time.Sleep(time.Second*2)
 				},
 			},
@@ -82,7 +82,7 @@ func TestHello(t *testing.T) {
 				"test": "OK",
 			},
 			mockProc: mockProcessor{
-				sendAndReceiveFunc: func(c *command) {
+				sendAndReceiveFunc: func(c command) {
 					c.resultValueChan <- map[string]string{
 						"test": "OK",
 					}
@@ -94,7 +94,7 @@ func TestHello(t *testing.T) {
 			expectedErr: testErr,
 			expectedResult: nil,
 			mockProc: mockProcessor{
-				sendAndReceiveFunc: func(c *command) {
+				sendAndReceiveFunc: func(c command) {
 					c.resultErrChan <- testErr
 				},
 			},
@@ -104,7 +104,7 @@ func TestHello(t *testing.T) {
 			expectedErr: context.DeadlineExceeded,
 			expectedResult: nil,
 			mockProc: mockProcessor{
-				sendAndReceiveFunc: func(c *command) {
+				sendAndReceiveFunc: func(c command) {
 					time.Sleep(time.Second*2)
 				},
 			},
@@ -144,7 +144,7 @@ func TestSet(t *testing.T) {
 			value: "OK",
 			expectedErr: nil,
 			mockProc: mockProcessor{
-				sendAndReceiveFunc: func(c *command) {
+				sendAndReceiveFunc: func(c command) {
 					c.resultErrChan <- nil
 				},
 			},

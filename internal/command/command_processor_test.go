@@ -244,7 +244,7 @@ func Test_sendAndReceive(t *testing.T) {
 			testProcessor.enc = &tt.encoder
 			testProcessor.dec = &tt.decoder
 
-			go testProcessor.sendAndReceive(&tt.cmd)
+			go testProcessor.sendAndReceive(tt.cmd)
 
 			select {
 			case err := <-tt.cmd.resultErrChan:

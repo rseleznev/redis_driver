@@ -18,7 +18,7 @@ type Commander interface {
 
 // processor - интерфейс, который реализует отправку команды и получение результата или ошибки
 type processor interface {
-	sendAndReceive(cmd *command)
+	sendAndReceive(cmd command)
 }
 
 type connector interface {
@@ -48,7 +48,7 @@ type commandProcessor struct {
 }
 
 // sendAndReceive осуществляет полный путь команды от сериализации до возврата результата
-func (p *commandProcessor) sendAndReceive(cmd *command) {
+func (p *commandProcessor) sendAndReceive(cmd command) {
 	// запрашиваем буфер для заполнения
 	sBuf := p.connector.GetSendBuf()
 
@@ -92,6 +92,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 
 
 // ------------------------------------------------
+
 // commandBuilder формирует правильный срез аргументов конкретной команды
 type commandBuilder struct {
 	// процессор команд (отправка и получение результата/ошибки)
@@ -122,7 +123,7 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 		resultErrChan: make(chan error),
 	}
 	cmd.args = append(cmd.args, "PING")
-	go b.proc.sendAndReceive(&cmd)
+	go b.proc.sendAndReceive(cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:
@@ -144,7 +145,7 @@ func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
 		resultErrChan: make(chan error),
 	}
 	cmd.args = append(cmd.args, "HELLO", "3")
-	go b.proc.sendAndReceive(&cmd)
+	go b.proc.sendAndReceive(cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:
@@ -175,11 +176,14 @@ func (b *commandBuilder) Set(ctx context.Context, key string, value any, duratio
 		ds := strconv.FormatInt(int64(duration), 10) // проверить, редис принимает секунды или миллисекунды
 		cmd.args = append(cmd.args, "EX", ds)
 	}
-	go b.proc.sendAndReceive(&cmd)
+	go b.proc.sendAndReceive(cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:
 		return err
+
+	case <-cmd.resultValueChan:
+		return nil
 
 	case <-ctx.Done():
 		return ctx.Err()
@@ -187,6 +191,24 @@ func (b *commandBuilder) Set(ctx context.Context, key string, value any, duratio
 	}
 }
 
-func (b *commandBuilder) Get(context.Context, string) (any, error) {
-	return nil, nil
+func (b *commandBuilder) Get(ctx context.Context, key string) (any, error) {
+	cmd := command{
+		args: make([]any, 0, 2),
+		resultValueChan: make(chan any),
+		resultErrChan: make(chan error),
+	}
+	cmd.args = append(cmd.args, "GET", key)
+	go b.proc.sendAndReceive(cmd)
+
+	select {
+	case err := <-cmd.resultErrChan:
+		return nil, err
+
+	case r := <-cmd.resultValueChan:
+		return r, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	}
 }
