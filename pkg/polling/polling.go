@@ -9,9 +9,8 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-type Epoller interface {
-	Add(models.PollingUnit) error
-	GetError() error
+type Epoll struct {
+	*epoll
 }
 
 type epoll struct {
@@ -39,7 +38,7 @@ type epoll struct {
 	sys epollSyscalls
 }
 
-func NewPoller() (Epoller, error) {
+func NewEpoll() (Epoll, error) {
 	eFd, err := syscall.EpollCreate(1)
 	if err != nil {
 		// EINVAL size is not positive.
@@ -49,23 +48,23 @@ func NewPoller() (Epoller, error) {
 		// 		was encountered.  See epoll(7) for further details.
 		// EMFILE The per-process limit on the number of open file descriptors has been reached.
 		if errors.Is(err, syscall.EMFILE) {
-			return nil, models.ErrTooManyFilesInProcess
+			return Epoll{}, models.ErrTooManyFilesInProcess
 		}
 
 		// ENFILE The system-wide limit on the total number of open files has been reached.
 		if errors.Is(err, syscall.ENFILE) {
-			return nil, models.ErrTooManyFilesInSystem
+			return Epoll{}, models.ErrTooManyFilesInSystem
 		}
 
 		// ENOMEM There was insufficient memory to create the kernel object.
 		if errors.Is(err, syscall.ENOMEM) {
-			return nil, models.ErrPollNoMemory
+			return Epoll{}, models.ErrPollNoMemory
 		}
 		
-		return nil, fmt.Errorf("polling creation err: %w", err)
+		return Epoll{}, fmt.Errorf("polling creation err: %w", err)
 	}
 
-	return &epoll{
+	return Epoll{&epoll{
 		fd: eFd,
 		mu: sync.Mutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
@@ -73,7 +72,7 @@ func NewPoller() (Epoller, error) {
 		sockets: make(map[int]models.PollingUnit),
 		socketsUnexpErr: make(map[int]error),
 		sys: epollRealSyscalls{},
-	}, nil
+	}}, nil
 }
 
 // Add добавляет событие (юнит), которое нужно поллить

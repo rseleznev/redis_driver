@@ -1,26 +1,15 @@
 package translator
 
-type Encoder interface {
-	Encode([]byte, []any) ([]byte, error)
+type Translator struct {}
+
+func NewTranslator() Translator {
+	return Translator{}
 }
 
-type Decoder interface {
-	Decode([]byte) (any, error)
-}
-
-type translator struct {}
-
-func NewEncoder() Encoder {
-	return translator{}
-}
-func NewDecoder() Decoder {
-	return translator{}
-}
-
-func (t translator) Encode([]byte, []any) ([]byte, error) {
+func (t Translator) Encode([]byte, []any) ([]byte, error) {
 	return nil, nil
 }
 
-func (t translator) Decode([]byte) (any, error) {
+func (t Translator) Decode([]byte) (any, error) {
 	return nil, nil
 }

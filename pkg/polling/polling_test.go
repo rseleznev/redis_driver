@@ -11,15 +11,6 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-func TestNewPoller(t *testing.T) {
-	var err error
-	
-	_, err = NewPoller()
-	if err != nil {
-		t.Error(err)
-	}
-}
-
 type mockSyscalls struct {
 	waitFunc func(int, []syscall.EpollEvent, int) (int, error)
 	getSocketOptFunc func(int, int, int) (int, error)

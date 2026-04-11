@@ -5,9 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rseleznev/redis_driver/internal/connection"
 	"github.com/rseleznev/redis_driver/internal/models"
-	"github.com/rseleznev/redis_driver/internal/translator"
 )
 
 // Commander - клиентский интерфейс, который реализует все доступные команды
@@ -23,16 +21,30 @@ type processor interface {
 	sendAndReceive(cmd *command)
 }
 
+type connector interface {
+	GetSendBuf() *models.SendBuf
+	SendAndReceive(*models.SendBuf) (*models.RecvBuf, error)
+	DrainRecvBuf(*models.RecvBuf)
+}
+
+type encoder interface {
+	Encode([]byte, []any) ([]byte, error)
+}
+
+type decoder interface {
+	Decode([]byte) (any, error)
+}
+
 // commandProcessor обеспечивает отправку команды и получение результата
 type commandProcessor struct {
 	// абстракция над соединением (в будущем будет пул соединений)
-	connector connection.Connector
+	connector connector
 
 	// кодировщик в формат RESP3
-	enc translator.Encoder
+	enc encoder
 
 	// декодировщик формата RESP3
-	dec translator.Decoder
+	dec decoder
 }
 
 // sendAndReceive осуществляет полный путь команды от сериализации до возврата результата
@@ -86,22 +98,15 @@ type commandBuilder struct {
 	proc processor
 }
 
-// NewClient возвращает клиента, готового выполнять команды
-func NewClient(opts models.Options) (Commander, error) {
-	c, err := connection.NewC(opts)
-	if err != nil {
-		return nil, err
-	}
-	e := translator.NewEncoder()
-	d := translator.NewDecoder()
-	
+// NewCommander возвращает клиента, готового выполнять команды
+func NewCommander(c connector, e encoder, d decoder) Commander {
 	return &commandBuilder{
 		proc: &commandProcessor{
 			connector: c,
 			enc: e,
 			dec: d,
 		},
-	}, nil
+	}
 }
 
 type command struct {
