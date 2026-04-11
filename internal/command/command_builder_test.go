@@ -202,3 +202,64 @@ func TestSet(t *testing.T) {
 		})
 	}
 }
+
+func TestGet(t *testing.T) {
+	testData := []struct{
+		name, key string
+		expectedErr error
+		expectedResult any
+		mockProc mockProcessor
+	}{
+		{
+			name: "success",
+			key: "test",
+			expectedErr: nil,
+			expectedResult: "OK",
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c command) {
+					c.resultValueChan <- "OK"
+				},
+			},
+		},
+		{
+			name: "fail err",
+			key: "test",
+			expectedErr: testErr,
+			expectedResult: nil,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c command) {
+					c.resultErrChan <- testErr
+				},
+			},
+		},
+		{
+			name: "fail timeout",
+			key: "test",
+			expectedErr: context.DeadlineExceeded,
+			expectedResult: nil,
+			mockProc: mockProcessor{
+				sendAndReceiveFunc: func(c command) {
+					time.Sleep(time.Second*2)
+				},
+			},
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testBuilder.proc = &tt.mockProc
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+			res, err := testBuilder.Get(ctx, tt.key)
+
+			defer cancel()
+
+			if err != tt.expectedErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
+			}
+			if res != tt.expectedResult {
+				t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, res)
+			}
+		})
+	}
+}
