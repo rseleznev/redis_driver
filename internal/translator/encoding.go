@@ -6,8 +6,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-type domBuilder struct {}
-type domSerializator struct {}
+type serializer struct {}
 
 func (t Translator) Encode(buf []byte, params []any) ([]byte, error) {
 	paramsAmount := len(params)
@@ -40,7 +39,7 @@ func (t Translator) Encode(buf []byte, params []any) ([]byte, error) {
 // buildDOMPart переводит тип данных Go в элемент DOM. Поддерживаются только: 
 // string, 
 // []byte, 
-func (db domBuilder) buildDOMPart(input any) (models.DOMPart, error) {
+func (t Translator) buildDOMPart(input any) (models.DOMPart, error) {
 	var part models.DOMPart
 
 	switch input := input.(type) {
@@ -66,16 +65,16 @@ func (db domBuilder) buildDOMPart(input any) (models.DOMPart, error) {
 
 // serializeDOMToRESP сериализует корневой DOM в RESP. Предполагается, что на вход поступит корневой DOM-элемент,
 // который содержит весь контент внутри себя
-func (ds domSerializator) serializeDOMToRESP(buf []byte, input models.DOMPart) []byte {
+func (s serializer) serializeDOMToRESP(buf []byte, input models.DOMPart) []byte {
 	if input.PartType != "array" {
 		panic("некорректный корневой элемент")
 	}
 
-	arrPart := ds.serializeDOMPartToRESP(input)
+	arrPart := s.serializeDOMPartToRESP(input)
 	buf = append(buf, arrPart...)
 
 	for _, v := range input.Content {
-		part := ds.serializeDOMPartToRESP(v)
+		part := s.serializeDOMPartToRESP(v)
 		buf = append(buf, part...)
 	}
 
@@ -83,7 +82,7 @@ func (ds domSerializator) serializeDOMToRESP(buf []byte, input models.DOMPart) [
 }
 
 // serializeDOMPartToRESP сериализует отдельный DOM элемент в формат RESP
-func (ds domSerializator) serializeDOMPartToRESP(input models.DOMPart) []byte {
+func (s serializer) serializeDOMPartToRESP(input models.DOMPart) []byte {
 
 	switch input.PartType {
 	case "string":

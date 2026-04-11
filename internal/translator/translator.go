@@ -5,15 +5,8 @@ import (
 )
 
 type Translator struct {
-	// интерфейс, который строит один DOM-объект
-	builder
-
 	// интерфейс, который преобразует корневой DOM-объект (со всем содержимым) в формат RESP
 	serializator
-}
-
-type builder interface {
-	buildDOMPart(any) (models.DOMPart, error)
 }
 
 type serializator interface {
@@ -22,8 +15,7 @@ type serializator interface {
 
 func NewTranslator() Translator {
 	return Translator{
-		builder: domBuilder{},
-		serializator: domSerializator{},
+		serializator: serializer{},
 	}
 }
 
