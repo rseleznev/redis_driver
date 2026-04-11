@@ -172,9 +172,9 @@ func (b *commandBuilder) Set(ctx context.Context, key string, value any, duratio
 		resultErrChan: make(chan error),
 	}
 	cmd.args = append(cmd.args, "SET", key, value)
-	if duration > 0 {
-		ds := strconv.FormatInt(int64(duration), 10) // проверить, редис принимает секунды или миллисекунды
-		cmd.args = append(cmd.args, "EX", ds)
+	if ms := duration.Milliseconds(); ms > 0 {
+		msString := strconv.FormatInt(ms, 10)
+		cmd.args = append(cmd.args, "PX", msString)
 	}
 	go b.proc.sendAndReceive(cmd)
 
