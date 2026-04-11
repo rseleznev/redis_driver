@@ -17,11 +17,14 @@ var (
 )
 
 type Client struct {
-	command.Commander
+	// основной механизм отправки команд и получения результатов
+	cmdr command.Commander
+
+	opts *models.Options
 }
 
-func NewClient(opts models.Options) (Client, error) {
-	initOptions(&opts)
+func NewClient(opts *models.Options) (Client, error) {
+	initOptions(opts)
 	
 	once.Do(func() {
 		epoll, epollErr = polling.NewEpoll()
@@ -40,6 +43,7 @@ func NewClient(opts models.Options) (Client, error) {
 	cmdr := command.NewCommander(c, t, t)
 
 	return Client{
-		Commander: cmdr,
+		cmdr: cmdr,
+		opts: opts,
 	}, nil
 }

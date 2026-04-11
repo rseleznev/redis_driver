@@ -6,7 +6,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-func NewConnection(opts models.Options, e epoller) (Connection, error) {
+func NewConnection(opts *models.Options, e epoller) (Connection, error) {
 	return Connection{}, nil
 }
 
