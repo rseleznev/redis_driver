@@ -6,8 +6,6 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-type serializer struct {}
-
 func (t Translator) Encode(buf []byte, params []any) ([]byte, error) {
 	paramsAmount := len(params)
 
@@ -65,16 +63,16 @@ func (t Translator) buildDOMPart(input any) (models.DOMPart, error) {
 
 // serializeDOMToRESP сериализует корневой DOM в RESP. Предполагается, что на вход поступит корневой DOM-элемент,
 // который содержит весь контент внутри себя
-func (s serializer) serializeDOMToRESP(buf []byte, input models.DOMPart) []byte {
+func (t Translator) serializeDOMToRESP(buf []byte, input models.DOMPart) []byte {
 	if input.PartType != "array" {
 		panic("некорректный корневой элемент")
 	}
 
-	arrPart := s.serializeDOMPartToRESP(input)
+	arrPart := t.serializeDOMPartToRESP(input)
 	buf = append(buf, arrPart...)
 
 	for _, v := range input.Content {
-		part := s.serializeDOMPartToRESP(v)
+		part := t.serializeDOMPartToRESP(v)
 		buf = append(buf, part...)
 	}
 
@@ -82,7 +80,7 @@ func (s serializer) serializeDOMToRESP(buf []byte, input models.DOMPart) []byte 
 }
 
 // serializeDOMPartToRESP сериализует отдельный DOM элемент в формат RESP
-func (s serializer) serializeDOMPartToRESP(input models.DOMPart) []byte {
+func (t Translator) serializeDOMPartToRESP(input models.DOMPart) []byte {
 
 	switch input.PartType {
 	case "string":

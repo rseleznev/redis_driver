@@ -1,22 +1,9 @@
 package translator
 
-import (
-	"github.com/rseleznev/redis_driver/internal/models"
-)
-
-type Translator struct {
-	// интерфейс, который преобразует корневой DOM-объект (со всем содержимым) в формат RESP
-	serializator
-}
-
-type serializator interface {
-	serializeDOMToRESP([]byte, models.DOMPart) []byte
-}
+type Translator struct {}
 
 func NewTranslator() Translator {
-	return Translator{
-		serializator: serializer{},
-	}
+	return Translator{}
 }
 
 func (t Translator) Decode([]byte) (any, error) {

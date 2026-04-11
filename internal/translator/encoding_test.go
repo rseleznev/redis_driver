@@ -7,17 +7,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-var (
-	testEncoder = Translator{}
-)
-
-type mockSerializator struct {
-	serializeDOMToRESPFunc func([]byte, models.DOMPart) []byte
-}
-
-func (ms mockSerializator) serializeDOMToRESP(buf []byte, input models.DOMPart) []byte {
-	return ms.serializeDOMToRESPFunc(buf, input)
-}
+var testEncoder = Translator{}
 
 func TestEncode(t *testing.T) {
 	testData := []struct{
@@ -26,21 +16,13 @@ func TestEncode(t *testing.T) {
 		params []any
 		expectedErr error
 		expectedResult []byte
-		s mockSerializator
 	}{
 		{
 			name: "success",
 			buf: make([]byte, 0, 10),
 			params: []any{"GET"},
 			expectedErr: nil,
-			expectedResult: []byte{'G', 'E', 'T'},
-			s: mockSerializator{
-				serializeDOMToRESPFunc: func(b []byte, d models.DOMPart) []byte {
-					b = append(b, 'G', 'E', 'T')
-
-					return b
-				},
-			},
+			expectedResult: []byte{'*', '1', '\r', '\n', '$', '3', '\r', '\n', 'G', 'E', 'T', '\r', '\n'},
 		},
 		{
 			name: "fail build",
@@ -48,18 +30,11 @@ func TestEncode(t *testing.T) {
 			params: []any{5},
 			expectedErr: models.ErrUnsupportedDataType,
 			expectedResult: []byte{},
-			s: mockSerializator{
-				serializeDOMToRESPFunc: func(b []byte, d models.DOMPart) []byte {
-					return b
-				},
-			},
 		},
 	}
 
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			testEncoder.serializator = tt.s
-
 			res, err := testEncoder.Encode(tt.buf, tt.params)
 			if err != tt.expectedErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
