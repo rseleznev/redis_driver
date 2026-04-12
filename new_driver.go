@@ -17,10 +17,10 @@ var (
 )
 
 type Client struct {
-	// основной механизм отправки команд и получения результатов
-	cmdr command.Commander
-
 	opts *models.Options
+
+	// основной механизм отправки команд и получения результатов
+	command.Commander
 }
 
 func NewClient(opts *models.Options) (Client, error) {
@@ -43,7 +43,7 @@ func NewClient(opts *models.Options) (Client, error) {
 	cmdr := command.NewCommander(c, t, t)
 
 	return Client{
-		cmdr: cmdr,
 		opts: opts,
+		Commander: cmdr,
 	}, nil
 }
