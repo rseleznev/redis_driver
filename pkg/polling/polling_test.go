@@ -29,7 +29,7 @@ func (ms *mockSyscalls) Ctl(eFd, o, sFd int, event *syscall.EpollEvent) error {
 	return ms.ctlFunc(eFd, o, sFd, event)
 }
 
-var testPoller = &epoll{
+var testPoller = &Epoll{
 	fd: 2,
 	mu: sync.Mutex{},
 	eventsBuf: make([]syscall.EpollEvent, 5),

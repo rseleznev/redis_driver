@@ -10,10 +10,6 @@ import (
 )
 
 type Epoll struct {
-	*epoll
-}
-
-type epoll struct {
 	// файловый дескриптор инстанса epoll
 	fd int
 
@@ -38,7 +34,7 @@ type epoll struct {
 	sys epollSyscalls
 }
 
-func NewEpoll() (Epoll, error) {
+func NewEpoll() (*Epoll, error) {
 	eFd, err := syscall.EpollCreate(1)
 	if err != nil {
 		// EINVAL size is not positive.
@@ -48,23 +44,23 @@ func NewEpoll() (Epoll, error) {
 		// 		was encountered.  See epoll(7) for further details.
 		// EMFILE The per-process limit on the number of open file descriptors has been reached.
 		if errors.Is(err, syscall.EMFILE) {
-			return Epoll{}, models.ErrTooManyFilesInProcess
+			return nil, models.ErrTooManyFilesInProcess
 		}
 
 		// ENFILE The system-wide limit on the total number of open files has been reached.
 		if errors.Is(err, syscall.ENFILE) {
-			return Epoll{}, models.ErrTooManyFilesInSystem
+			return nil, models.ErrTooManyFilesInSystem
 		}
 
 		// ENOMEM There was insufficient memory to create the kernel object.
 		if errors.Is(err, syscall.ENOMEM) {
-			return Epoll{}, models.ErrPollNoMemory
+			return nil, models.ErrPollNoMemory
 		}
 		
-		return Epoll{}, fmt.Errorf("polling creation err: %w", err)
+		return nil, fmt.Errorf("polling creation err: %w", err)
 	}
 
-	return Epoll{&epoll{
+	return &Epoll{
 		fd: eFd,
 		mu: sync.Mutex{},
 		eventsBuf: make([]syscall.EpollEvent, 5),
@@ -72,11 +68,11 @@ func NewEpoll() (Epoll, error) {
 		sockets: make(map[int]models.PollingUnit),
 		socketsUnexpErr: make(map[int]error),
 		sys: epollRealSyscalls{},
-	}}, nil
+	}, nil
 }
 
 // Add добавляет событие (юнит), которое нужно поллить
-func (e *epoll) Add(unit models.PollingUnit) error {
+func (e *Epoll) Add(unit models.PollingUnit) error {
 	e.mu.Lock()
 
 	defer e.mu.Unlock()
@@ -136,7 +132,7 @@ func (e *epoll) Add(unit models.PollingUnit) error {
 // wait делает системный вызов epoll_wait с нулевым таймаутом
 //
 // Крутится, пока не получит события по всем ждущим сокетам
-func (e *epoll) wait() {
+func (e *Epoll) wait() {
 	for {
 		n, err := e.sys.Wait(e.fd, e.eventsBuf, 0)
 		if err != nil {
@@ -162,7 +158,7 @@ func (e *epoll) wait() {
 }
 
 // processEvents обрабатывает полученные события, находит готовые сокеты и возвращает результаты ждущим потокам
-func (e *epoll) processEvents(readySocketsLen int) {
+func (e *Epoll) processEvents(readySocketsLen int) {
 	e.mu.Lock()
 
 	defer e.mu.Unlock()
@@ -240,15 +236,15 @@ func (e *epoll) processEvents(readySocketsLen int) {
 	e.clearReadyEvents() // удаляем завершенные события
 }
 
-func (e *epoll) setError(err error) {
+func (e *Epoll) setError(err error) {
 	e.err = err
 }
 
-func (e *epoll) deleteError() {
+func (e *Epoll) deleteError() {
 	e.err = nil
 }
 
-func (e *epoll) GetError() error {
+func (e *Epoll) GetError() error {
 	err := e.err
 	e.deleteError()
 
@@ -256,7 +252,7 @@ func (e *epoll) GetError() error {
 }
 
 // pushError информирует все ждущие потоки о глобальной ошибке epoll
-func (e *epoll) pushError() {
+func (e *Epoll) pushError() {
 	e.mu.Lock()
 
 	defer e.mu.Unlock()
@@ -272,36 +268,36 @@ func (e *epoll) pushError() {
 // ------------------------------------------------
 // Методы, которые должны вызываться только под захваченным мьютексом
 
-func (e *epoll) isSocketInPolling(socketFd int) bool {
+func (e *Epoll) isSocketInPolling(socketFd int) bool {
 	_, ok := e.sockets[socketFd]
 	return ok
 }
 
-func (e *epoll) addSocketInPolling(unit models.PollingUnit) {
+func (e *Epoll) addSocketInPolling(unit models.PollingUnit) {
 	e.sockets[unit.SocketFd] = unit
 }
 
-func (e *epoll) deleteSocketFromPolling(socketFd int) {
+func (e *Epoll) deleteSocketFromPolling(socketFd int) {
 	delete(e.sockets, socketFd)
 }
 
-func (e *epoll) isPolling() bool {
+func (e *Epoll) isPolling() bool {
 	return e.polling
 }
 
-func (e *epoll) startPolling() {
+func (e *Epoll) startPolling() {
 	e.polling = true
 }
 
-func (e *epoll) stopPolling() {
+func (e *Epoll) stopPolling() {
 	e.polling = false
 }
 
-func (e *epoll) pollingSocketsLen() int {
+func (e *Epoll) pollingSocketsLen() int {
 	return len(e.sockets)
 }
 
-func (e *epoll) newOutcomeEvent(socketFd int) syscall.EpollEvent {
+func (e *Epoll) newOutcomeEvent(socketFd int) syscall.EpollEvent {
 	return syscall.EpollEvent{
 		Events: syscall.EPOLLOUT,
 		Fd: int32(socketFd),
@@ -309,7 +305,7 @@ func (e *epoll) newOutcomeEvent(socketFd int) syscall.EpollEvent {
 	}
 }
 
-func (e *epoll) newIncomeEvent(socketFd int) syscall.EpollEvent {
+func (e *Epoll) newIncomeEvent(socketFd int) syscall.EpollEvent {
 	return syscall.EpollEvent{
 		Events: syscall.EPOLLIN,
 		Fd: int32(socketFd),
@@ -317,7 +313,7 @@ func (e *epoll) newIncomeEvent(socketFd int) syscall.EpollEvent {
 	}
 }
 
-func (e *epoll) addConnectEvent(socketFd int) error {
+func (e *Epoll) addConnectEvent(socketFd int) error {
 	event := e.newOutcomeEvent(socketFd)
 	
 	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_ADD, socketFd, &event)
@@ -328,7 +324,7 @@ func (e *epoll) addConnectEvent(socketFd int) error {
 	return nil
 }
 
-func (e *epoll) addIncomeEvent(socketFd int) error {
+func (e *Epoll) addIncomeEvent(socketFd int) error {
 	event := e.newIncomeEvent(socketFd)
 
 	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
@@ -339,7 +335,7 @@ func (e *epoll) addIncomeEvent(socketFd int) error {
 	return nil
 }
 
-func (e *epoll) addOutcomeEvent(socketFd int) error {
+func (e *Epoll) addOutcomeEvent(socketFd int) error {
 	event := e.newOutcomeEvent(socketFd)
 
 	err := e.sys.Ctl(e.fd, syscall.EPOLL_CTL_MOD, socketFd, &event)
@@ -352,35 +348,35 @@ func (e *epoll) addOutcomeEvent(socketFd int) error {
 
 // Подумать над удалением сокета из interest list через ctl.EPOLL_CTL_DEL
 
-func (e *epoll) getSocketResultChan(socketFd int) chan error {
+func (e *Epoll) getSocketResultChan(socketFd int) chan error {
 	return e.sockets[socketFd].ResultChan
 }
 
-func (e *epoll) getSocketEventType(socketFd int) string {
+func (e *Epoll) getSocketEventType(socketFd int) string {
 	return e.sockets[socketFd].EventType
 }
 
-func (e *epoll) addReadyEvents(events []syscall.EpollEvent) {
+func (e *Epoll) addReadyEvents(events []syscall.EpollEvent) {
 	e.readyEvents = append(e.readyEvents, events...)
 }
 
-func (e *epoll) clearReadyEvents() {
+func (e *Epoll) clearReadyEvents() {
 	e.readyEvents = e.readyEvents[:0]
 }
 
-func (e *epoll) setSocketUnexpErr(socketFd int, err error) {
+func (e *Epoll) setSocketUnexpErr(socketFd int, err error) {
 	e.socketsUnexpErr[socketFd] = err
 }
 
-func (e *epoll) getSocketUnexpErr(socketFd int) error {
+func (e *Epoll) getSocketUnexpErr(socketFd int) error {
 	return e.socketsUnexpErr[socketFd]
 }
 
-func (e *epoll) deleteSocketUnexpErr(socketFd int) {
+func (e *Epoll) deleteSocketUnexpErr(socketFd int) {
 	delete(e.socketsUnexpErr, socketFd)
 }
 
-func (e *epoll) handleEpollError(err error) error {
+func (e *Epoll) handleEpollError(err error) error {
 	// EBADF  epfd or fd is not a valid file descriptor.
 	if errors.Is(err, syscall.EBADF) {
 		return models.ErrPollBadFD

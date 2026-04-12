@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	epoll polling.Epoll
+	epoll *polling.Epoll
 	epollErr error
 	once sync.Once
 )
