@@ -6,11 +6,11 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-func NewConnection(opts *models.Options, e epoller) (*Connection, error) {
+func NewConnection(opts *models.Options, e poller) (*Connection, error) {
 	return &Connection{}, nil
 }
 
-type epoller interface {
+type poller interface {
 	Add(models.PollingUnit) error
 	GetError() error
 }
@@ -20,7 +20,7 @@ type Connection struct {
 	mu sync.Mutex
 	sendBuf *models.SendBuf
 	recvBuf *models.RecvBuf
-	poller epoller
+	p poller
 }
 
 func (c *Connection) GetSendBuf() *models.SendBuf {
