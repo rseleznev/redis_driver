@@ -45,13 +45,11 @@ func (t Translator) buildDOMPart(input any) (models.DOMPart, error) {
 		part.PartType = "string"
 		part.ValueLen = len(input)
 		part.Value = []byte(input)
-		part.TotalBytesLen = len(input)
 
 	case []byte:
 		part.PartType = "string"
 		part.ValueLen = len(input)
 		part.Value = input
-		part.TotalBytesLen = len(input)
 
 	default:
 		return models.DOMPart{}, models.ErrUnsupportedDataType
@@ -87,20 +85,13 @@ func (t Translator) serializeDOMPartToRESP(input models.DOMPart) []byte {
 		result := make([]byte, 0, input.ValueLen + 6) // не точный расчет
 		result = append(result, '$')
 
-		vl := input.ValueLen
-		if vl > 99 {
-			panic("слишком длинная строка!") // заглушка
+		vls := strconv.Itoa(input.ValueLen)
+		vlb := []byte(vls)
+
+		for _, v := range vlb {
+			result = append(result, v)
 		}
-		if vl > 9 {
-			fstDg := vl / 10
-			scndDg := vl % 10
-			fstDgS := strconv.Itoa(fstDg)
-			scndDgS := strconv.Itoa(scndDg)
-			result = append(result, fstDgS[0], scndDgS[0], '\r', '\n')
-		} else {
-			vls := strconv.Itoa(vl)
-			result = append(result, vls[0], '\r', '\n')
-		}
+		result = append(result, '\r', '\n')
 		result = append(result, input.Value...)
 		result = append(result, '\r', '\n')
 
