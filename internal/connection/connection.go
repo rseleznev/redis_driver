@@ -31,8 +31,9 @@ type Connection struct {
 	opts *models.Options
 	mu sync.Mutex
 
-	// фабрика для создания нужных объектов, сохраняем в структуру для возможности создания в будущем
-	f Factory
+	// фабрика для создания нужных объектов, 
+	// сохраняем в структуру для использования в будущем
+	factory Factory
 
 	// интерфейсы
 	poller poller
@@ -68,7 +69,7 @@ func NewConnection(opts *models.Options) (*Connection, error) {
 		socketFd: s.GetSocketFd(),
 		opts: opts,
 		mu: sync.Mutex{},
-		f: f,
+		factory: f,
 		poller: p,
 		socket: s,
 	}
@@ -99,14 +100,14 @@ func (c *Connection) connect() error {
 	err := c.socket.Connect(c.opts)
 	if err != nil {
 		// сокет в неблокирующем режиме и нужно поллить
-		if errors.Is(err, syscall.EAGAIN) {
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
 			err = c.poll("connect")
 			if err != nil {
 				return err
 			}
-			
 			return nil
 		}
+		return err
 	}
 	
 	return nil
@@ -126,12 +127,25 @@ func (c *Connection) poll(eventType string) error {
 		ResultChan: make(chan error),
 	}
 
-	err := c.poller.Add(pUnit)
-	if err != nil {
-		// здесь нужно в некоторых случаях делать попытки в цикле
-		return err
+	var err error
+
+	for {
+		err = c.poller.Add(pUnit)
+		if err != nil {
+			// сокет уже поллится, крутимся в цикле и пробуем отдать наше событие
+			if err == models.ErrSocketAlreadyAdded {
+				continue
+			}
+
+			// какие еще ошибки тут могут быть:
+			// - асинхронная ошибка
+			// - неизвестный тип события
+			return err
+		}
+		break
 	}
 
+	// блокируемся на чтении результата поллинга
 	err = <-pUnit.ResultChan
 	if err != nil {
 		return err
@@ -147,7 +161,7 @@ func (c *Connection) GetSendBuf() (*models.SendBuf, error) {
 	defer c.mu.Unlock()
 
 	if c.isProcessing() {
-		return nil, models.ErrConnectionCmdInProcessing
+		return nil, models.ErrConnectionCmdInProcess
 	}
 	c.startProcessing()
 	

@@ -15,16 +15,22 @@ type Client struct {
 }
 
 func NewClient(opts *models.Options) (Client, error) {
+	// инициализируем опции
 	initOptions(opts)
 
+	// создаем соединение
 	c, err := connection.NewConnection(opts)
 	if err != nil {
 		return Client{}, err
 	}
 
+	// создаем кодировщик
 	t := translator.NewTranslator()
 
+	// создаем главного координатора
 	cmdr := command.NewCommander(c, t, t)
+
+	// вызываем Hello3()
 
 	return Client{
 		opts: opts,

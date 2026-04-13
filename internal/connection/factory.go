@@ -30,6 +30,7 @@ func (f Factory) NewPoller() (poller, error) {
 	once.Do(func() {
 		epoll, epollErr = polling.NewEpoll()
 	})
+	
 	if epollErr != nil {
 		return nil, epollErr
 	}
