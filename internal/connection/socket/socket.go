@@ -8,8 +8,10 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
+type Socket int
+
 // New создает новый сокет
-func New(tcpSendBufLen, tcpRcvBufLen int) (int, error) {
+func New(tcpSendBufLen, tcpRcvBufLen int) (Socket, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 	if err != nil {
@@ -73,18 +75,25 @@ func New(tcpSendBufLen, tcpRcvBufLen int) (int, error) {
 	}
 	
 
-	return socketFd, nil
+	return Socket(socketFd), nil
+}
+
+func (s Socket) GetSocketFd() int {
+	return int(s)
 }
 
 // Connect подключает созданный сокет
-func Connect(ip [4]byte, port, socketFd int) error {
+func (s Socket) Connect(opts *models.Options) error {
+	port := opts.RedisPort
+	ip := opts.RedisIp
+	
 	// Адрес сервера
 	var addr syscall.SockaddrInet4
 	addr.Port = port // нужно будет сделать валидацию
 	addr.Addr = ip // нужно будет сделать валидацию
 
 	// Подключение сокета
-	err := syscall.Connect(socketFd, &addr)
+	err := syscall.Connect(s.GetSocketFd(), &addr)
 	if err != nil {
 		// EACCES For  UNIX  domain  sockets,  which are identified by pathname: Write permission is denied on the
 		// 		socket file, or search permission is denied for one of the directories in the path prefix.  (See

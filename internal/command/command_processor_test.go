@@ -33,12 +33,12 @@ func (md *mockDec) Decode(b []byte) (any, error) {
 
 
 type mockConn struct{
-	getSendBufFunc func() *models.SendBuf
+	getSendBufFunc func() (*models.SendBuf, error)
 	sendAndReceiveFunc func(*models.SendBuf) (*models.RecvBuf, error)
 	drainRecvBufFunc func(*models.RecvBuf)
 }
 
-func (mc *mockConn) GetSendBuf() *models.SendBuf {
+func (mc *mockConn) GetSendBuf() (*models.SendBuf, error) {
 	return mc.getSendBufFunc()
 }
 
@@ -68,11 +68,11 @@ func Test_sendAndReceive(t *testing.T) {
 				resultErrChan: make(chan error),
 			},
 			conn: mockConn{
-				getSendBufFunc: func() *models.SendBuf {
+				getSendBufFunc: func() (*models.SendBuf, error) {
 					return &models.SendBuf{
 						SocketFd: 5,
 						Buf: make([]byte, 0, 20),
-					}
+					}, nil
 				},
 				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
 					return &models.RecvBuf{
@@ -103,11 +103,11 @@ func Test_sendAndReceive(t *testing.T) {
 				resultErrChan: make(chan error),
 			},
 			conn: mockConn{
-				getSendBufFunc: func() *models.SendBuf {
+				getSendBufFunc: func() (*models.SendBuf, error) {
 					return &models.SendBuf{
 						SocketFd: 5,
 						Buf: make([]byte, 0, 20),
-					}
+					}, nil
 				},
 				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
 					return &models.RecvBuf{
@@ -138,11 +138,11 @@ func Test_sendAndReceive(t *testing.T) {
 				resultErrChan: make(chan error),
 			},
 			conn: mockConn{
-				getSendBufFunc: func() *models.SendBuf {
+				getSendBufFunc: func() (*models.SendBuf, error) {
 					return &models.SendBuf{
 						SocketFd: 5,
 						Buf: make([]byte, 0, 20),
-					}
+					}, nil
 				},
 				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
 					return &models.RecvBuf{
@@ -173,11 +173,11 @@ func Test_sendAndReceive(t *testing.T) {
 				resultErrChan: make(chan error),
 			},
 			conn: mockConn{
-				getSendBufFunc: func() *models.SendBuf {
+				getSendBufFunc: func() (*models.SendBuf, error) {
 					return &models.SendBuf{
 						SocketFd: 5,
 						Buf: make([]byte, 0, 20),
-					}
+					}, nil
 				},
 				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
 					return &models.RecvBuf{
@@ -208,11 +208,11 @@ func Test_sendAndReceive(t *testing.T) {
 				resultErrChan: make(chan error),
 			},
 			conn: mockConn{
-				getSendBufFunc: func() *models.SendBuf {
+				getSendBufFunc: func() (*models.SendBuf, error) {
 					return &models.SendBuf{
 						SocketFd: 5,
 						Buf: make([]byte, 0, 20),
-					}
+					}, nil
 				},
 				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
 					return &models.RecvBuf{

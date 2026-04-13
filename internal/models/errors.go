@@ -34,6 +34,7 @@ var (
 	ErrConnectionReset = errors.New("redis_driver: connection is reset by server") // ECONNRESET
 	ErrNotConnected = errors.New("redis_driver: socket is not connected") // ENOTCONN
 	ErrConnectionClosed = errors.New("redis_driver: connection is closed by server") // EPIPE
+	ErrConnectionCmdInProcessing = errors.New("redis_driver: connection is processing another command")
 
 	// common
 	ErrTooManyFilesInProcess = errors.New("redis_driver: per-process limit of open file descriptors has been reached") // EMFILE

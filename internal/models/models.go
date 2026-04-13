@@ -63,11 +63,11 @@ type PollingResult struct {
 type SendBuf struct {
 	SocketFd int
 	Buf []byte
-	prevLen int
+	PrevCap int
 }
 
 type RecvBuf struct {
 	SocketFd int
 	Buf []byte
-	prevLen int
+	PrevCap int
 }

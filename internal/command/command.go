@@ -22,7 +22,7 @@ type processor interface {
 }
 
 type connector interface {
-	GetSendBuf() *models.SendBuf
+	GetSendBuf() (*models.SendBuf, error)
 	SendAndReceive(*models.SendBuf) (*models.RecvBuf, error)
 	DrainRecvBuf(*models.RecvBuf)
 }
@@ -50,7 +50,10 @@ type commandProcessor struct {
 // sendAndReceive осуществляет полный путь команды от сериализации до возврата результата
 func (p *commandProcessor) sendAndReceive(cmd command) {
 	// запрашиваем буфер для заполнения
-	sBuf := p.connector.GetSendBuf()
+	sBuf, err := p.connector.GetSendBuf()
+	if err != nil {
+		// если занято, надо подождать
+	}
 
 	// кодируем в RESP
 	data, err := p.enc.Encode(sBuf.Buf, cmd.args)
