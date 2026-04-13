@@ -34,12 +34,17 @@ func (md *mockDec) Decode(b []byte) (any, error) {
 
 type mockConn struct{
 	getSendBufFunc func() (*models.SendBuf, error)
+	cancelFunc func()
 	sendAndReceiveFunc func(*models.SendBuf) (*models.RecvBuf, error)
 	drainRecvBufFunc func(*models.RecvBuf)
 }
 
 func (mc *mockConn) GetSendBuf() (*models.SendBuf, error) {
 	return mc.getSendBufFunc()
+}
+
+func (mc *mockConn) Cancel() {
+	mc.cancelFunc()
 }
 
 func (mc *mockConn) SendAndReceive(sBuf *models.SendBuf) (*models.RecvBuf, error) {
@@ -244,7 +249,7 @@ func Test_sendAndReceive(t *testing.T) {
 			testProcessor.enc = &tt.encoder
 			testProcessor.dec = &tt.decoder
 
-			go testProcessor.sendAndReceive(tt.cmd)
+			go testProcessor.sendAndReceive(&tt.cmd)
 
 			select {
 			case err := <-tt.cmd.resultErrChan:

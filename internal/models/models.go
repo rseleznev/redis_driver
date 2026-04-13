@@ -30,13 +30,6 @@ type Options struct {
 	ReceiveBufAvgLen int
 }
 
-type Command struct {
-	Operation string
-	SendingData []byte
-	ResultChan chan []byte
-	ErrChan chan error
-}
-
 type DOMPart struct {
 	PartType string // тип элемента
 

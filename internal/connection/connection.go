@@ -168,6 +168,17 @@ func (c *Connection) GetSendBuf() (*models.SendBuf, error) {
 	return c.sendBuf, nil
 }
 
+func (c *Connection) Cancel() {
+	c.mu.Lock()
+
+	defer c.mu.Unlock()
+
+	// очистить буфер отправки
+	// очистить буфер получения
+
+	c.stopProcessing()
+}
+
 func (c *Connection) SendAndReceive(*models.SendBuf) (*models.RecvBuf, error) {
 	// отправка данных
 
@@ -196,4 +207,8 @@ func (c *Connection) isProcessing() bool {
 
 func (c *Connection) startProcessing() {
 	c.processing = true
+}
+
+func (c *Connection) stopProcessing() {
+	c.processing = false
 }

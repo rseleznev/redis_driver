@@ -18,11 +18,12 @@ type Commander interface {
 
 // processor - интерфейс, который реализует отправку команды и получение результата или ошибки
 type processor interface {
-	sendAndReceive(cmd command)
+	sendAndReceive(cmd *command)
 }
 
 type connector interface {
 	GetSendBuf() (*models.SendBuf, error)
+	Cancel()
 	SendAndReceive(*models.SendBuf) (*models.RecvBuf, error)
 	DrainRecvBuf(*models.RecvBuf)
 }
@@ -48,11 +49,19 @@ type commandProcessor struct {
 }
 
 // sendAndReceive осуществляет полный путь команды от сериализации до возврата результата
-func (p *commandProcessor) sendAndReceive(cmd command) {
+func (p *commandProcessor) sendAndReceive(cmd *command) {
+	if !cmd.isWaiting() {
+		return
+	}
+	
 	// запрашиваем буфер для заполнения
 	sBuf, err := p.connector.GetSendBuf()
 	if err != nil {
 		// если занято, надо подождать
+	}
+
+	if !cmd.isWaiting() {
+		return
 	}
 
 	// может быть проблема, когда скопилось несколько команд и они начинают отлетать по таймауту
@@ -62,8 +71,16 @@ func (p *commandProcessor) sendAndReceive(cmd command) {
 	// кодируем в RESP
 	data, err := p.enc.Encode(sBuf.Buf, cmd.args)
 	if err != nil {
-		cmd.resultErrChan <- err
+		select {
+		case cmd.resultErrChan <- err:
 
+		case <-cmd.done():
+			p.connector.Cancel()
+
+		}
+		return
+	}
+	if !cmd.isWaiting() {
 		return
 	}
 	sBuf.Buf = data
@@ -73,8 +90,16 @@ func (p *commandProcessor) sendAndReceive(cmd command) {
 	// отправляем команду и ждем результат
 	rBuf, err = p.connector.SendAndReceive(sBuf)
 	if err != nil {
-		cmd.resultErrChan <- err
+		select {
+		case cmd.resultErrChan <- err:
 
+		case <-cmd.done():
+			p.connector.Cancel()
+
+		}
+		return
+	}
+	if !cmd.isWaiting() {
 		return
 	}
 
@@ -83,8 +108,16 @@ func (p *commandProcessor) sendAndReceive(cmd command) {
 	// декодируем в объект Go
 	result, err = p.dec.Decode(rBuf.Buf)
 	if err != nil {
-		cmd.resultErrChan <- err
+		select {
+		case cmd.resultErrChan <- err:
 
+		case <-cmd.done():
+			p.connector.Cancel()
+
+		}
+		return
+	}
+	if !cmd.isWaiting() {
 		return
 	}
 
@@ -121,13 +154,31 @@ type command struct {
 	args []any
 	resultValueChan chan any
 	resultErrChan chan error
+
+	timeout chan struct{}
+	waiting bool
+}
+
+func (c *command) isWaiting() bool {
+	return c.waiting
+}
+
+func (c *command) stopWaiting() {
+	c.waiting = false
+	close(c.timeout)
+}
+
+func (c *command) done() <-chan struct{} {
+	return c.timeout
 }
 
 func (b *commandBuilder) Ping(ctx context.Context) error {
-	cmd := command{
+	cmd := &command{
 		args: make([]any, 0, 1),
 		resultValueChan: make(chan any),
 		resultErrChan: make(chan error),
+		timeout: make(chan struct{}),
+		waiting: true,
 	}
 	cmd.args = append(cmd.args, "PING")
 	go b.proc.sendAndReceive(cmd)
@@ -140,16 +191,19 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 		return nil
 
 	case <-ctx.Done():
+		cmd.stopWaiting()
 		return ctx.Err()
 
 	}
 }
 
 func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
-	cmd := command{
+	cmd := &command{
 		args: make([]any, 0, 2),
 		resultValueChan: make(chan any),
 		resultErrChan: make(chan error),
+		timeout: make(chan struct{}),
+		waiting: true,
 	}
 	cmd.args = append(cmd.args, "HELLO", "3")
 	go b.proc.sendAndReceive(cmd)
@@ -167,16 +221,19 @@ func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
 		return res, nil
 
 	case <-ctx.Done():
+		cmd.stopWaiting()
 		return nil, ctx.Err()
 
 	}
 }
 
 func (b *commandBuilder) Set(ctx context.Context, key string, value any, duration time.Duration) error {
-	cmd := command{
+	cmd := &command{
 		args: make([]any, 0, 5),
 		resultValueChan: make(chan any),
 		resultErrChan: make(chan error),
+		timeout: make(chan struct{}),
+		waiting: true,
 	}
 	cmd.args = append(cmd.args, "SET", key, value)
 	if ms := duration.Milliseconds(); ms > 0 {
@@ -193,16 +250,19 @@ func (b *commandBuilder) Set(ctx context.Context, key string, value any, duratio
 		return nil
 
 	case <-ctx.Done():
+		cmd.stopWaiting()
 		return ctx.Err()
 
 	}
 }
 
 func (b *commandBuilder) Get(ctx context.Context, key string) (any, error) {
-	cmd := command{
+	cmd := &command{
 		args: make([]any, 0, 2),
 		resultValueChan: make(chan any),
 		resultErrChan: make(chan error),
+		timeout: make(chan struct{}),
+		waiting: true,
 	}
 	cmd.args = append(cmd.args, "GET", key)
 	go b.proc.sendAndReceive(cmd)
@@ -215,6 +275,7 @@ func (b *commandBuilder) Get(ctx context.Context, key string) (any, error) {
 		return r, nil
 
 	case <-ctx.Done():
+		cmd.stopWaiting()
 		return nil, ctx.Err()
 
 	}
