@@ -23,7 +23,7 @@ type processor interface {
 
 type connector interface {
 	GetSendBuf() (*models.SendBuf, error)
-	Cancel()
+	CancelProcessing()
 	SendAndReceive(*models.SendBuf) (*models.RecvBuf, error)
 	DrainRecvBuf(*models.RecvBuf)
 }
@@ -75,7 +75,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 		case cmd.resultErrChan <- err:
 
 		case <-cmd.done():
-			p.connector.Cancel()
+			p.connector.CancelProcessing()
 
 		}
 		return
@@ -94,7 +94,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 		case cmd.resultErrChan <- err:
 
 		case <-cmd.done():
-			p.connector.Cancel()
+			p.connector.CancelProcessing()
 
 		}
 		return
@@ -112,7 +112,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 		case cmd.resultErrChan <- err:
 
 		case <-cmd.done():
-			p.connector.Cancel()
+			p.connector.CancelProcessing()
 
 		}
 		return

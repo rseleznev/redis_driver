@@ -164,21 +164,26 @@ func (c *Connection) GetSendBuf() (*models.SendBuf, error) {
 		return nil, models.ErrConnectionCmdInProcess
 	}
 	c.startProcessing()
+
+	// очистка буфера отправки
+	c.drainSendBuf()
 	
 	return c.sendBuf, nil
 }
 
-func (c *Connection) Cancel() {
+// CancelProcessing отменяет начатую операцию, очищает буфер отправки для следующей операции
+func (c *Connection) CancelProcessing() {
 	c.mu.Lock()
 
 	defer c.mu.Unlock()
 
-	// очистить буфер отправки
-	// очистить буфер получения
+	// очистка буфера получения
+	c.DrainRecvBuf(c.recvBuf)
 
 	c.stopProcessing()
 }
 
+// SendAndReceive отправляет данные, ждет результат и возвращает его
 func (c *Connection) SendAndReceive(*models.SendBuf) (*models.RecvBuf, error) {
 	// отправка данных
 
@@ -193,8 +198,23 @@ func (c *Connection) SendAndReceive(*models.SendBuf) (*models.RecvBuf, error) {
 	return c.recvBuf, nil
 }
 
-func (c *Connection) DrainRecvBuf(*models.RecvBuf) {
-	
+// DrainRecvBuf очищает буфер получения, скидывает флаг процессинга.
+// Вызывается, когда команда получила свои данные
+func (c *Connection) DrainRecvBuf(_ *models.RecvBuf) {
+	c.mu.Lock()
+
+	defer c.mu.Unlock()
+
+	c.stopProcessing()
+	c.drainRecvBuf()
+}
+
+func (c *Connection) drainRecvBuf() {
+	c.recvBuf.Buf = c.recvBuf.Buf[:0]
+}
+
+func (c *Connection) drainSendBuf() {
+	c.sendBuf.Buf = c.sendBuf.Buf[:0]
 }
 
 
