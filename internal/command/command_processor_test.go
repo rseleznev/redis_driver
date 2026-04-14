@@ -1,8 +1,10 @@
 package command
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/rseleznev/redis_driver/internal/models"
 )
@@ -34,7 +36,7 @@ func (md *mockDec) Decode(b []byte) (any, error) {
 
 type mockConn struct{
 	getSendBufFunc func() (*models.SendBuf, error)
-	cancelFunc func()
+	cancelProcessingFunc func()
 	sendAndReceiveFunc func(*models.SendBuf) (*models.RecvBuf, error)
 	drainRecvBufFunc func(*models.RecvBuf)
 }
@@ -43,8 +45,8 @@ func (mc *mockConn) GetSendBuf() (*models.SendBuf, error) {
 	return mc.getSendBufFunc()
 }
 
-func (mc *mockConn) Cancel() {
-	mc.cancelFunc()
+func (mc *mockConn) CancelProcessing() {
+	mc.cancelProcessingFunc()
 }
 
 func (mc *mockConn) SendAndReceive(sBuf *models.SendBuf) (*models.RecvBuf, error) {
@@ -69,8 +71,11 @@ func Test_sendAndReceive(t *testing.T) {
 		{
 			name: "success nil",
 			cmd: command{
+				args: []any{"TEST"},
 				resultValueChan: make(chan any),
 				resultErrChan: make(chan error),
+				timeout: make(chan struct{}),
+				waiting: true,
 			},
 			conn: mockConn{
 				getSendBufFunc: func() (*models.SendBuf, error) {
@@ -104,8 +109,11 @@ func Test_sendAndReceive(t *testing.T) {
 		{
 			name: "success OK",
 			cmd: command{
+				args: []any{"OK"},
 				resultValueChan: make(chan any),
 				resultErrChan: make(chan error),
+				timeout: make(chan struct{}),
+				waiting: true,
 			},
 			conn: mockConn{
 				getSendBufFunc: func() (*models.SendBuf, error) {
@@ -137,10 +145,91 @@ func Test_sendAndReceive(t *testing.T) {
 			expectedResult: "OK",
 		},
 		{
-			name: "fail encode",
+			name: "fail not waiting",
 			cmd: command{
+				args: []any{"FAIL"},
 				resultValueChan: make(chan any),
 				resultErrChan: make(chan error),
+				timeout: make(chan struct{}),
+				waiting: false,
+			},
+			conn: mockConn{
+				getSendBufFunc: func() (*models.SendBuf, error) {
+					return &models.SendBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 0, 20),
+					}, nil
+				},
+				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
+					return &models.RecvBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 20),
+					}, nil
+				},
+				drainRecvBufFunc: func(rb *models.RecvBuf) {},
+			},
+			encoder: mockEnc{
+				encodeFunc: func(b []byte, a []any) ([]byte, error) {
+					testEncodedData := []byte{'T', 'E', 'S', 'T'}
+					return testEncodedData, testErr
+				},
+			},
+			decoder: mockDec{
+				decodeFunc: func(b []byte) (any, error) {
+					return nil, nil
+				},
+			},
+			expectedErr: nil,
+			expectedResult: nil,
+		},
+		{
+			name: "fail command done",
+			cmd: command{
+				args: []any{"FAIL"},
+				resultValueChan: make(chan any),
+				resultErrChan: make(chan error),
+				timeout: make(chan struct{}),
+				waiting: true,
+			},
+			conn: mockConn{
+				getSendBufFunc: func() (*models.SendBuf, error) {
+					return &models.SendBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 0, 20),
+					}, nil
+				},
+				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
+					return &models.RecvBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 20),
+					}, nil
+				},
+				drainRecvBufFunc: func(rb *models.RecvBuf) {},
+			},
+			encoder: mockEnc{
+				encodeFunc: func(b []byte, a []any) ([]byte, error) {
+					time.Sleep(time.Second*2)
+
+					testEncodedData := []byte{'T', 'E', 'S', 'T'}
+					return testEncodedData, testErr
+				},
+			},
+			decoder: mockDec{
+				decodeFunc: func(b []byte) (any, error) {
+					return nil, nil
+				},
+			},
+			expectedErr: nil,
+			expectedResult: nil,
+		},
+		{
+			name: "fail encode",
+			cmd: command{
+				args: []any{"FAIL"},
+				resultValueChan: make(chan any),
+				resultErrChan: make(chan error),
+				timeout: make(chan struct{}),
+				waiting: true,
 			},
 			conn: mockConn{
 				getSendBufFunc: func() (*models.SendBuf, error) {
@@ -174,8 +263,11 @@ func Test_sendAndReceive(t *testing.T) {
 		{
 			name: "fail sendAndReceive",
 			cmd: command{
+				args: []any{"FAIL"},
 				resultValueChan: make(chan any),
 				resultErrChan: make(chan error),
+				timeout: make(chan struct{}),
+				waiting: true,
 			},
 			conn: mockConn{
 				getSendBufFunc: func() (*models.SendBuf, error) {
@@ -209,8 +301,11 @@ func Test_sendAndReceive(t *testing.T) {
 		{
 			name: "fail decode",
 			cmd: command{
+				args: []any{"FAIL"},
 				resultValueChan: make(chan any),
 				resultErrChan: make(chan error),
+				timeout: make(chan struct{}),
+				waiting: true,
 			},
 			conn: mockConn{
 				getSendBufFunc: func() (*models.SendBuf, error) {
@@ -251,6 +346,8 @@ func Test_sendAndReceive(t *testing.T) {
 
 			go testProcessor.sendAndReceive(&tt.cmd)
 
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+
 			select {
 			case err := <-tt.cmd.resultErrChan:
 				if err != tt.expectedErr {
@@ -262,7 +359,12 @@ func Test_sendAndReceive(t *testing.T) {
 					t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, res)
 				}
 
+			case <-ctx.Done():
+				t.Log("Вышли из select по таймауту")
+				tt.cmd.stopWaiting()
+
 			}
+			cancel()
 		})
 	}
 }
