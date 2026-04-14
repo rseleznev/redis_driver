@@ -53,20 +53,25 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 	if !cmd.isWaiting() {
 		return
 	}
+	var sBuf *models.SendBuf
+	var err error
 	
-	// запрашиваем буфер для заполнения
-	sBuf, err := p.connector.GetSendBuf()
-	if err != nil {
-		// если занято, надо подождать
+	for {
+		// запрашиваем буфер для заполнения
+		sBuf, err = p.connector.GetSendBuf()
+		if err != nil { // пока здесь может быть только одна ошибка
+			if err == models.ErrConnectionCmdInProcess && cmd.isWaiting() {
+				continue
+			}
+			break
+		}
+		break
 	}
 
 	if !cmd.isWaiting() {
+		p.connector.CancelProcessing()
 		return
 	}
-
-	// может быть проблема, когда скопилось несколько команд и они начинают отлетать по таймауту
-	// то есть commandBuilder уже не ждет результаты, но команды продолжат выполняться,
-	// тем самым соберется очередь команд и даже новые вызовы не будут работать, пока не обработается вся очередь
 
 	// кодируем в RESP
 	data, err := p.enc.Encode(sBuf.Buf, cmd.args)
@@ -81,6 +86,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 		return
 	}
 	if !cmd.isWaiting() {
+		p.connector.CancelProcessing()
 		return
 	}
 	sBuf.Buf = data
@@ -100,6 +106,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 		return
 	}
 	if !cmd.isWaiting() {
+		p.connector.CancelProcessing()
 		return
 	}
 
@@ -118,6 +125,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 		return
 	}
 	if !cmd.isWaiting() {
+		p.connector.CancelProcessing()
 		return
 	}
 
