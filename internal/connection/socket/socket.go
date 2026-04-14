@@ -10,8 +10,8 @@ import (
 
 type Socket int
 
-// New создает новый сокет
-func New(tcpSendBufLen, tcpRcvBufLen int) (Socket, error) {
+// NewSocket создает новый сокет
+func NewSocket(tcpSendBufLen, tcpRcvBufLen int) (Socket, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 	if err != nil {

@@ -19,11 +19,11 @@ type poller interface {
 }
 
 type sender interface {
-	Send() error
+	Send([]byte) (int, error)
 }
 
 type receiver interface {
-	Receive() error
+	Receive([]byte) error
 }
 
 type Connection struct {
@@ -91,6 +91,9 @@ func NewConnection(opts *models.Options) (*Connection, error) {
 		Buf: make([]byte, 0, opts.ReceiveBufAvgLen),
 		PrevCap: opts.ReceiveBufAvgLen,
 	}
+
+	conn.sender = f.NewSender()
+	conn.receiver = f.NewReceiver()
 	
 	return conn, nil
 }
@@ -171,23 +174,24 @@ func (c *Connection) GetSendBuf() (*models.SendBuf, error) {
 	return c.sendBuf, nil
 }
 
-// CancelProcessing отменяет начатую операцию, очищает буфер отправки для следующей операции
+// CancelProcessing отменяет начатую операцию
 func (c *Connection) CancelProcessing() {
 	c.mu.Lock()
 
 	defer c.mu.Unlock()
 
-	// очистка буфера получения
-	c.DrainRecvBuf(c.recvBuf)
-
+	c.drainRecvBuf()
 	c.stopProcessing()
 }
 
 // SendAndReceive отправляет данные, ждет результат и возвращает его
-func (c *Connection) SendAndReceive(*models.SendBuf) (*models.RecvBuf, error) {
-	// отправка данных
-
-	// поллинг
+func (c *Connection) SendAndReceive(buf *models.SendBuf) (*models.RecvBuf, error) {
+	c.sendBuf = buf
+	
+	err := c.send()
+	if err != nil {
+		return nil, err
+	}
 
 	// очистка буфера отправки
 
@@ -198,8 +202,43 @@ func (c *Connection) SendAndReceive(*models.SendBuf) (*models.RecvBuf, error) {
 	return c.recvBuf, nil
 }
 
+func (c *Connection) send() error {
+	n, err := c.sender.Send(c.sendBuf.Buf)
+	if err != nil {
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
+			err = c.poll("outcome")
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		if err == models.ErrSendMsgTrunc {
+			err = c.finishSend(n)
+			if err != nil {
+				return err
+			}
+		}
+
+		return err	
+	}
+
+	// ретраи?
+	
+	return nil
+}
+
+func (c *Connection) finishSend(sentBytes int) error {
+	n, err := c.sender.Send(c.sendBuf.Buf[sentBytes:])
+	if err != nil {
+		c.finishSend(n)
+	}
+	// доделать!
+	
+	return nil
+}
+
 // DrainRecvBuf очищает буфер получения, скидывает флаг процессинга.
-// Вызывается, когда команда получила свои данные
+// Вызывается, когда команда прочитала все свои данные
 func (c *Connection) DrainRecvBuf(_ *models.RecvBuf) {
 	c.mu.Lock()
 

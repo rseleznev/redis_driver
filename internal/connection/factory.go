@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/rseleznev/redis_driver/internal/connection/socket"
+	"github.com/rseleznev/redis_driver/internal/connection/transmitter"
 	"github.com/rseleznev/redis_driver/internal/models"
 	"github.com/rseleznev/redis_driver/pkg/polling"
 )
@@ -17,7 +18,7 @@ var (
 type Factory struct {}
 
 func (f Factory) NewSocket(opts *models.Options) (socketer, error) {
-	socket, err := socket.New(opts.TCPSendBufLen, opts.TCPReceiveBufLen)
+	socket, err := socket.NewSocket(opts.TCPSendBufLen, opts.TCPReceiveBufLen)
 	if err != nil {
 		return nil, err
 	}
@@ -36,4 +37,12 @@ func (f Factory) NewPoller() (poller, error) {
 	}
 
 	return epoll, epollErr
+}
+
+func (f Factory) NewSender() sender {
+	return transmitter.NewSender()
+}
+
+func (f Factory) NewReceiver() receiver {
+	return transmitter.NewReceiver()
 }
