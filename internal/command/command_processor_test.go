@@ -384,6 +384,42 @@ func Test_sendAndReceive(t *testing.T) {
 			expectedErr: testErr,
 			expectedResult: nil,
 		},
+		{
+			name: "fail conn busy with timeout",
+			cmd: command{
+				args: []any{"FAIL"},
+				resultValueChan: make(chan any),
+				resultErrChan: make(chan error),
+				timeout: make(chan struct{}),
+				waiting: true,
+			},
+			conn: mockConn{
+				getSendBufFunc: func() (*models.SendBuf, error) {
+					return nil, models.ErrConnectionCmdInProcess
+				},
+				sendAndReceiveFunc: func(sb *models.SendBuf) (*models.RecvBuf, error) {
+					return &models.RecvBuf{
+						SocketFd: 5,
+						Buf: make([]byte, 20),
+					}, nil
+				},
+				drainRecvBufFunc: func(rb *models.RecvBuf) {},
+				cancelProcessingFunc: func() {},
+			},
+			encoder: mockEnc{
+				encodeFunc: func(b []byte, a []any) ([]byte, error) {
+					testEncodedData := []byte{'T', 'E', 'S', 'T'}
+					return testEncodedData, testErr
+				},
+			},
+			decoder: mockDec{
+				decodeFunc: func(b []byte) (any, error) {
+					return nil, nil
+				},
+			},
+			expectedErr: nil,
+			expectedResult: nil,
+		},
 	}
 
 	for _, tt := range testData {
@@ -408,7 +444,7 @@ func Test_sendAndReceive(t *testing.T) {
 				}
 
 			case <-ctx.Done():
-				t.Log("Вышли из select по таймауту")
+				t.Log("Прекращаем ожидание команды")
 				tt.cmd.stopWaiting()
 
 			}
