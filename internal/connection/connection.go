@@ -147,7 +147,7 @@ func (c *Connection) poll(eventType string) error {
 			// какие еще ошибки тут могут быть:
 			// - асинхронная ошибка
 			// - неизвестный тип события
-			return err
+			return c.processPollError(eventType, err)
 		}
 		break
 	}
@@ -173,8 +173,15 @@ func (c *Connection) newContextWithTimeout() (context.Context, context.CancelFun
 	return context.WithTimeout(context.Background(), c.opts.PollingTimeout)
 }
 
+func (c *Connection) processPollError(_ string, _ error) error {
+	// обработка ошибок в зависимости от ожидаемого события
+	
+	return nil
+}
+
 // GetSendBuf отдает буфер отправки для заполнения данными если не процессится другая команда
 // и запускает процессинг, т.е. другие команды будут получать ошибку ErrConnectionCmdInProcess
+// пока данная команда не будет обработана до конца
 func (c *Connection) GetSendBuf() (*models.SendBuf, error) {
 	c.mu.Lock()
 	
@@ -222,7 +229,7 @@ func (c *Connection) SendAndReceive(buf *models.SendBuf) (*models.RecvBuf, error
 func (c *Connection) send() error {
 	n, err := c.sender.Send(c.sendBuf.Buf)
 	if err != nil {
-		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
 			err = c.poll("outcome")
 			if err != nil {
 				return err
