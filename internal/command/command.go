@@ -63,7 +63,14 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 			if err == models.ErrConnectionCmdInProcess && cmd.isWaiting() {
 				continue
 			}
-			break
+
+			select {
+			case cmd.resultErrChan <- err:
+
+			case <-cmd.done():
+
+			}
+			return
 		}
 		break
 	}
@@ -124,16 +131,18 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 		}
 		return
 	}
-	if !cmd.isWaiting() {
-		p.connector.CancelProcessing()
-		return
-	}
 
 	// сообщаем, что можно очистить буфер получения
 	p.connector.DrainRecvBuf(rBuf)
 
 	// возвращаем успешный результат
-	cmd.resultValueChan <- result
+	select {
+	case cmd.resultValueChan <- result:
+
+	case <-cmd.done():
+
+	}
+	
 }
 
 
