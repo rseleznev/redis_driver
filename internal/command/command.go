@@ -18,50 +18,39 @@ type Commander interface {
 
 // processor - интерфейс, который реализует отправку команды и получение результата или ошибки
 type processor interface {
-	sendAndReceive(cmd *command)
+	process(cmd *command)
 }
 
 type connector interface {
-	GetSendBuf() (*models.SendBuf, error)
+	Process([]any) (any, error)
 	CancelProcessing()
-	SendAndReceive(*models.SendBuf) (*models.RecvBuf, error)
-	DrainRecvBuf(*models.RecvBuf)
-}
-
-type encoder interface {
-	Encode([]byte, []any) ([]byte, error)
-}
-
-type decoder interface {
-	Decode([]byte) (any, error)
+	Done()
 }
 
 // commandProcessor обеспечивает отправку команды и получение результата
 type commandProcessor struct {
 	// абстракция над соединением (в будущем будет пул соединений)
 	connector connector
-
-	// кодировщик в формат RESP3
-	enc encoder
-
-	// декодировщик формата RESP3
-	dec decoder
 }
 
-// sendAndReceive осуществляет полный путь команды от сериализации до возврата результата
-func (p *commandProcessor) sendAndReceive(cmd *command) {
+// process осуществляет полный путь команды от сериализации до возврата результата
+func (p *commandProcessor) process(cmd *command) {
 	if !cmd.isWaiting() {
 		return
 	}
-	var sBuf *models.SendBuf
+
+	var result any
 	var err error
-	
+
 	for {
-		// запрашиваем буфер для заполнения
-		sBuf, err = p.connector.GetSendBuf()
-		if err != nil { // пока здесь может быть только одна ошибка
+		result, err = p.connector.Process(cmd.args)
+		if err != nil {
 			if err == models.ErrConnectionCmdInProcess && cmd.isWaiting() {
 				continue
+			}
+			if !cmd.isWaiting() {
+				p.connector.CancelProcessing()
+				return
 			}
 
 			select {
@@ -71,69 +60,12 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 
 			}
 			return
+
 		}
 		break
 	}
-
-	if !cmd.isWaiting() {
-		p.connector.CancelProcessing()
-		return
-	}
-
-	// кодируем в RESP
-	data, err := p.enc.Encode(sBuf.Buf, cmd.args)
-	if err != nil {
-		select {
-		case cmd.resultErrChan <- err:
-
-		case <-cmd.done():
-			p.connector.CancelProcessing()
-
-		}
-		return
-	}
-	if !cmd.isWaiting() {
-		p.connector.CancelProcessing()
-		return
-	}
-	sBuf.Buf = data
-
-	var rBuf *models.RecvBuf
-
-	// отправляем команду и ждем результат
-	rBuf, err = p.connector.SendAndReceive(sBuf)
-	if err != nil {
-		select {
-		case cmd.resultErrChan <- err:
-
-		case <-cmd.done():
-			p.connector.CancelProcessing()
-
-		}
-		return
-	}
-	if !cmd.isWaiting() {
-		p.connector.CancelProcessing()
-		return
-	}
-
-	var result any
-
-	// декодируем в объект Go
-	result, err = p.dec.Decode(rBuf.Buf)
-	if err != nil {
-		select {
-		case cmd.resultErrChan <- err:
-
-		case <-cmd.done():
-			p.connector.CancelProcessing()
-
-		}
-		return
-	}
-
-	// сообщаем, что можно очистить буфер получения
-	p.connector.DrainRecvBuf(rBuf)
+	
+	// скопировать результат?
 
 	// возвращаем успешный результат
 	select {
@@ -143,6 +75,7 @@ func (p *commandProcessor) sendAndReceive(cmd *command) {
 
 	}
 	
+	p.connector.Done()
 }
 
 
@@ -157,12 +90,10 @@ type commandBuilder struct {
 }
 
 // NewCommander возвращает клиента, готового выполнять команды
-func NewCommander(c connector, e encoder, d decoder) Commander {
+func NewCommander(c connector) Commander {
 	return &commandBuilder{
 		proc: &commandProcessor{
 			connector: c,
-			enc: e,
-			dec: d,
 		},
 	}
 }
@@ -198,7 +129,7 @@ func (b *commandBuilder) Ping(ctx context.Context) error {
 		waiting: true,
 	}
 	cmd.args = append(cmd.args, "PING")
-	go b.proc.sendAndReceive(cmd)
+	go b.proc.process(cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:
@@ -223,7 +154,7 @@ func (b *commandBuilder) Hello(ctx context.Context) (map[string]string, error) {
 		waiting: true,
 	}
 	cmd.args = append(cmd.args, "HELLO", "3")
-	go b.proc.sendAndReceive(cmd)
+	go b.proc.process(cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:
@@ -257,7 +188,7 @@ func (b *commandBuilder) Set(ctx context.Context, key string, value any, duratio
 		msString := strconv.FormatInt(ms, 10)
 		cmd.args = append(cmd.args, "PX", msString)
 	}
-	go b.proc.sendAndReceive(cmd)
+	go b.proc.process(cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:
@@ -282,7 +213,7 @@ func (b *commandBuilder) Get(ctx context.Context, key string) (any, error) {
 		waiting: true,
 	}
 	cmd.args = append(cmd.args, "GET", key)
-	go b.proc.sendAndReceive(cmd)
+	go b.proc.process(cmd)
 
 	select {
 	case err := <-cmd.resultErrChan:

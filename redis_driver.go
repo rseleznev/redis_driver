@@ -4,7 +4,6 @@ import (
 	"github.com/rseleznev/redis_driver/internal/command"
 	"github.com/rseleznev/redis_driver/internal/connection"
 	"github.com/rseleznev/redis_driver/internal/models"
-	"github.com/rseleznev/redis_driver/internal/translator"
 )
 
 type Client struct {
@@ -24,11 +23,8 @@ func NewClient(opts *models.Options) (Client, error) {
 		return Client{}, err
 	}
 
-	// создаем кодировщик
-	t := translator.NewTranslator()
-
 	// создаем главного координатора
-	cmdr := command.NewCommander(c, t, t)
+	cmdr := command.NewCommander(c)
 
 	// вызываем Hello3()
 
