@@ -236,6 +236,14 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 	e.clearReadyEvents() // удаляем завершенные события
 }
 
+func (e *Epoll) DeleteSocketFromPolling(socketFd int) { // написать тесты
+	e.mu.Lock()
+
+	defer e.mu.Unlock()
+	
+	e.deleteSocketFromPolling(socketFd)
+}
+
 func (e *Epoll) setError(err error) {
 	e.err = err
 }

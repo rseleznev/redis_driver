@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type Options struct {
 	RedisIp [4]byte // сделать поудобнее, одним полем
 	RedisPort int // сделать поудобнее, одним полем
@@ -28,6 +30,10 @@ type Options struct {
 	ReceiveBufMaxLen int
 	// Средний размер, которого нужно придерживаться. По умолчанию равен ReceiveBufMinLen
 	ReceiveBufAvgLen int
+
+	// Таймаут поллинга
+	// При наступлении возвращается ошибка ErrPollTimeout
+	PollingTimeout time.Duration
 }
 
 type DOMPart struct {

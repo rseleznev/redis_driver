@@ -1,6 +1,7 @@
 package connection
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"syscall"
@@ -16,6 +17,7 @@ type socketer interface {
 type poller interface {
 	Add(models.PollingUnit) error
 	GetError() error
+	DeleteSocketFromPolling(int)
 }
 
 type sender interface {
@@ -131,6 +133,8 @@ func (c *Connection) poll(eventType string) error {
 	}
 
 	var err error
+	ctx, cancel := c.newContextWithTimeout()
+	defer cancel()
 
 	for {
 		err = c.poller.Add(pUnit)
@@ -149,15 +153,28 @@ func (c *Connection) poll(eventType string) error {
 	}
 
 	// блокируемся на чтении результата поллинга
-	err = <-pUnit.ResultChan
-	if err != nil {
-		return err
+	select {
+	case err = <-pUnit.ResultChan:
+		if err != nil {
+			return err
+		}
+
+	case <-ctx.Done():
+		c.poller.DeleteSocketFromPolling(c.socket.GetSocketFd())
+		return models.ErrPollTimeout
+
 	}
+	
 
 	return nil
 }
 
+func (c *Connection) newContextWithTimeout() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), c.opts.PollingTimeout)
+}
+
 // GetSendBuf отдает буфер отправки для заполнения данными если не процессится другая команда
+// и запускает процессинг, т.е. другие команды будут получать ошибку ErrConnectionCmdInProcess
 func (c *Connection) GetSendBuf() (*models.SendBuf, error) {
 	c.mu.Lock()
 	
