@@ -278,6 +278,39 @@ func (c *Connection) send(fromIdx int) error {
 }
 
 func (c *Connection) receive() error {
+	err := c.receiver.Receive(c.recvBuf.Buf)
+	if err != nil {
+		// нет данных в буфере получения, нужно ждать
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+			err = c.poll("income")
+			if err != nil {
+				return err
+			}
+
+			return c.receive()
+		}
+		
+		switch err {
+
+		// в буфер получения влезли не все данные
+		case models.ErrRecvMsgTrunc:
+			// увеличиваем буфер?
+
+		// соединение сброшено
+		case models.ErrConnectionClosed:
+			// переподключаемся
+
+		// сокет не подключен
+		case models.ErrNotConnected:
+			// коннектимся
+
+		// все остальные ошибки
+		default:
+			return err
+		
+		}
+	}
+	
 	return nil
 }
 
