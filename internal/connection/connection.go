@@ -85,8 +85,8 @@ func NewConnection(opts *models.Options) (*Connection, error) {
 	// создаем буферы
 	conn.sendBuf = &models.SendBuf{
 		SocketFd: s.GetSocketFd(),
-		Buf: make([]byte, 0, 50), // брать из опций
-		PrevCap: 50,
+		Buf: make([]byte, 0, opts.SendBufAvgLen),
+		PrevCap: opts.SendBufAvgLen,
 	}
 	conn.recvBuf = &models.RecvBuf{
 		SocketFd: s.GetSocketFd(),
@@ -289,7 +289,7 @@ func (c *Connection) receive() error {
 
 			return c.receive()
 		}
-		
+
 		switch err {
 
 		// в буфер получения влезли не все данные
@@ -323,6 +323,8 @@ func (c *Connection) DrainRecvBuf(_ *models.RecvBuf) {
 
 	c.stopProcessing()
 	c.drainRecvBuf()
+	c.correctSendBufCap()
+	c.correctReceiveBufCap()
 }
 
 func (c *Connection) drainRecvBuf() {
@@ -347,4 +349,12 @@ func (c *Connection) startProcessing() {
 
 func (c *Connection) stopProcessing() {
 	c.processing = false
+}
+
+func (c *Connection) correctSendBufCap() {
+	// сравниваем текущую емкость с SendBuf.PrevCap
+}
+
+func (c *Connection) correctReceiveBufCap() {
+
 }
