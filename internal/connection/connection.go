@@ -110,8 +110,10 @@ func (c *Connection) connect() error {
 			if err != nil {
 				return err
 			}
+
 			return nil
 		}
+
 		return err
 	}
 	
@@ -147,7 +149,8 @@ func (c *Connection) poll(eventType string) error {
 			// какие еще ошибки тут могут быть:
 			// - асинхронная ошибка
 			// - неизвестный тип события
-			return c.processPollError(eventType, err)
+
+			return err
 		}
 		break
 	}
@@ -156,11 +159,12 @@ func (c *Connection) poll(eventType string) error {
 	select {
 	case err = <-pUnit.ResultChan:
 		if err != nil {
-			return err
+			return c.processPollError(eventType, err)
 		}
 
 	case <-ctx.Done():
 		c.poller.DeleteSocketFromPolling(c.socket.GetSocketFd())
+
 		return models.ErrPollTimeout
 
 	}
@@ -173,8 +177,12 @@ func (c *Connection) newContextWithTimeout() (context.Context, context.CancelFun
 	return context.WithTimeout(context.Background(), c.opts.PollingTimeout)
 }
 
+// processPollError обрабатывает ошибки epoll в зависимости от события.
+// Если с ошибкой что-то можно сделать, это будет сделано.
+// Например, может переподключиться к серверу или делать ретраи отправки/получения
 func (c *Connection) processPollError(_ string, _ error) error {
-	// обработка ошибок в зависимости от ожидаемого события
+
+	// внимательно изучить, в каких ситуациях какие флаги устанавливает epoll
 	
 	return nil
 }
@@ -212,52 +220,64 @@ func (c *Connection) CancelProcessing() {
 func (c *Connection) SendAndReceive(buf *models.SendBuf) (*models.RecvBuf, error) {
 	c.sendBuf = buf
 	
-	err := c.send()
+	err := c.send(0)
 	if err != nil {
 		return nil, err
 	}
 
-	// очистка буфера отправки
-
-	// получение
-
-	// поллинг
+	err = c.receive()
+	if err != nil {
+		return nil, err
+	}
 	
 	return c.recvBuf, nil
 }
 
-func (c *Connection) send() error {
-	n, err := c.sender.Send(c.sendBuf.Buf)
+func (c *Connection) send(fromIdx int) error {
+	var sentBytes int
+	var err error
+	
+	if fromIdx == 0 {
+		sentBytes, err = c.sender.Send(c.sendBuf.Buf)
+	} else {
+		sentBytes, err = c.sender.Send(c.sendBuf.Buf[fromIdx:])
+	}
 	if err != nil {
+		// буфер отправки полон, нужно ждать
 		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
 			err = c.poll("outcome")
 			if err != nil {
 				return err
 			}
+
 			return nil
 		}
-		if err == models.ErrSendMsgTrunc {
-			err = c.finishSend(n)
-			if err != nil {
-				return err
-			}
-		}
 
-		return err	
+		switch err {
+
+		// влезли не все данные
+		case models.ErrSendMsgTrunc:
+			return c.send(sentBytes)
+
+		// соединение сброшено
+		case models.ErrConnectionReset, models.ErrConnectionClosed:
+			// переподключаемся
+
+		// сокет не подключен
+		case models.ErrNotConnected:
+			// коннектимся
+
+		// все остальные ошибки
+		default:
+			return err
+		
+		}	
 	}
-
-	// ретраи?
 	
 	return nil
 }
 
-func (c *Connection) finishSend(sentBytes int) error {
-	n, err := c.sender.Send(c.sendBuf.Buf[sentBytes:])
-	if err != nil {
-		c.finishSend(n)
-	}
-	// доделать!
-	
+func (c *Connection) receive() error {
 	return nil
 }
 
