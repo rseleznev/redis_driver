@@ -3,8 +3,8 @@ package connection
 import (
 	"sync"
 
-	"github.com/rseleznev/redis_driver/internal/connection/socket"
-	"github.com/rseleznev/redis_driver/internal/connection/transmitter"
+	"github.com/rseleznev/redis_driver/internal/socket"
+	"github.com/rseleznev/redis_driver/internal/transmitter"
 	"github.com/rseleznev/redis_driver/internal/models"
 	"github.com/rseleznev/redis_driver/pkg/polling"
 )
