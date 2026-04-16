@@ -9,10 +9,10 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-type socketer interface {
-	GetSocketFd() int
-	Connect(*models.Options) error
+type Connector interface {
+	Process(context.Context, []any) (any, error)
 }
+
 
 type poller interface {
 	Add(models.PollingUnit) error
@@ -20,24 +20,23 @@ type poller interface {
 	DeleteSocketFromPolling(int)
 }
 
-type sender interface {
-	Send([]byte) (int, error)
+type socketer interface {
+	GetSocketFd() int
+	Connect(*models.Options) error
 }
 
-type receiver interface {
-	Receive([]byte) error
-}
-
-type encoder interface {
-	Encode([]byte, []any) ([]byte, error)
-}
-
-type decoder interface {
+type coder interface {
+	Encode(*models.SendBuf, []any) error
 	Decode([]byte) (any, error)
 }
 
+type messenger interface {
+	Send([]byte) (int, error)
+	Receive(*models.RecvBuf) error
+}
+
+
 type Connection struct {
-	socketFd int
 	opts *models.Options
 	mu sync.Mutex
 
@@ -48,21 +47,18 @@ type Connection struct {
 	// интерфейсы
 	poller poller
 	socket socketer
-	sender sender
-	receiver receiver
-	enc encoder
-	dec decoder
+	coder coder
+	msgr messenger
 
 	// буферы
 	sendBuf *models.SendBuf
 	recvBuf *models.RecvBuf
 
-	// флаг, есть ли сейчас команда в обработке
-	// пока одна команда не обработается до конца, новые не принимаются
+	// флаг, занято ли соединение
 	processing bool
 }
 
-func NewConnection(opts *models.Options) (*Connection, error) {
+func NewConnector(opts *models.Options) (Connector, error) {
 	var f Factory
 	
 	// создаем сокет
@@ -78,12 +74,18 @@ func NewConnection(opts *models.Options) (*Connection, error) {
 	}
 
 	conn := &Connection{
-		socketFd: s.GetSocketFd(),
 		opts: opts,
 		mu: sync.Mutex{},
 		factory: f,
 		poller: p,
 		socket: s,
+
+		sendBuf: &models.SendBuf{
+			Buf: make([]byte, 0, opts.SendBufMinLen),
+		},
+		recvBuf: &models.RecvBuf{
+			Buf: make([]byte, 0, opts.ReceiveBufMinLen),
+		},
 	}
 
 	// подключаем сокет
@@ -92,20 +94,8 @@ func NewConnection(opts *models.Options) (*Connection, error) {
 		return nil, err
 	}
 
-	// создаем буферы
-	conn.sendBuf = &models.SendBuf{
-		SocketFd: s.GetSocketFd(),
-		Buf: make([]byte, 0, opts.SendBufAvgLen),
-		PrevCap: opts.SendBufAvgLen,
-	}
-	conn.recvBuf = &models.RecvBuf{
-		SocketFd: s.GetSocketFd(),
-		Buf: make([]byte, 0, opts.ReceiveBufAvgLen),
-		PrevCap: opts.ReceiveBufAvgLen,
-	}
-
-	conn.sender = f.NewSender()
-	conn.receiver = f.NewReceiver()
+	conn.coder = f.NewCoder()
+	conn.msgr = f.NewMessenger(conn.socket.GetSocketFd())
 	
 	return conn, nil
 }
@@ -139,7 +129,7 @@ func (c *Connection) connect() error {
 // - nil при событии outcome означает, что исходящие данные отправлены
 func (c *Connection) poll(eventType string) error {
 	pUnit := models.PollingUnit{
-		SocketFd: c.socketFd,
+		SocketFd: c.socket.GetSocketFd(),
 		EventType: eventType,
 		ResultChan: make(chan error),
 	}
@@ -197,7 +187,9 @@ func (c *Connection) processPollError(_ string, _ error) error {
 	return nil
 }
 
-func (c *Connection) Process(cmdParams []any) (any, error) {
+
+
+func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	c.mu.Lock()
 	
 	defer c.mu.Unlock()
@@ -208,32 +200,29 @@ func (c *Connection) Process(cmdParams []any) (any, error) {
 	c.startProcessing()
 	
 	// кодируем в RESP
-	c.enc.Encode(c.sendBuf.Buf, cmdParams)
-
-	err := c.send(0)
-	if err != nil {
-		return nil, err
+	// увеличение буфера отправки!
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	
+	// отправляем
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
-	err = c.receive()
-	if err != nil {
-		return nil, err
+	// получаем
+	// увеличение буфера получения!
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
-	// декодируем в объект Go
-	c.dec.Decode(c.recvBuf.Buf)
+	// декодируем
+
+	// очищаем буферы?
+
+	c.stopProcessing()
 
 	return nil, nil
-}
-
-// CancelProcessing отменяет начатую операцию
-func (c *Connection) CancelProcessing() {
-	c.mu.Lock()
-
-	defer c.mu.Unlock()
-
-	c.drainRecvBuf()
-	c.stopProcessing()
 }
 
 func (c *Connection) send(fromIdx int) error {
@@ -241,9 +230,9 @@ func (c *Connection) send(fromIdx int) error {
 	var err error
 	
 	if fromIdx == 0 {
-		sentBytes, err = c.sender.Send(c.sendBuf.Buf)
+		sentBytes, err = c.msgr.Send(c.sendBuf.Buf)
 	} else {
-		sentBytes, err = c.sender.Send(c.sendBuf.Buf[fromIdx:])
+		sentBytes, err = c.msgr.Send(c.sendBuf.Buf[fromIdx:])
 	}
 	if err != nil {
 		// буфер отправки полон, нужно ждать
@@ -281,7 +270,7 @@ func (c *Connection) send(fromIdx int) error {
 }
 
 func (c *Connection) receive() error {
-	err := c.receiver.Receive(c.recvBuf.Buf)
+	err := c.msgr.Receive(c.recvBuf)
 	if err != nil {
 		// нет данных в буфере получения, нужно ждать
 		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
@@ -317,27 +306,6 @@ func (c *Connection) receive() error {
 	return nil
 }
 
-// Done очищает буфер получения, скидывает флаг процессинга.
-// Вызывается, когда команда прочитала все свои данные
-func (c *Connection) Done() {
-	c.mu.Lock()
-
-	defer c.mu.Unlock()
-
-	c.stopProcessing()
-	c.drainRecvBuf()
-	c.correctSendBufCap()
-	c.correctReceiveBufCap()
-}
-
-func (c *Connection) drainRecvBuf() {
-	c.recvBuf.Buf = c.recvBuf.Buf[:0]
-}
-
-func (c *Connection) drainSendBuf() {
-	c.sendBuf.Buf = c.sendBuf.Buf[:0]
-}
-
 
 // ------------------------------------------------
 // Методы, которые должны вызываться только под захваченным мьютексом
@@ -352,12 +320,4 @@ func (c *Connection) startProcessing() {
 
 func (c *Connection) stopProcessing() {
 	c.processing = false
-}
-
-func (c *Connection) correctSendBufCap() {
-	// сравниваем текущую емкость с SendBuf.PrevCap
-}
-
-func (c *Connection) correctReceiveBufCap() {
-
 }

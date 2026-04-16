@@ -6,7 +6,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-func (t Translator) Encode(buf []byte, params []any) ([]byte, error) {
+func (t Translator) Encode(buf *models.SendBuf, params []any) error {
 	paramsAmount := len(params)
 
 	parts := make([]models.DOMPart, paramsAmount)
@@ -16,7 +16,7 @@ func (t Translator) Encode(buf []byte, params []any) ([]byte, error) {
 	for i, v := range params {
 		parts[i], err = t.buildDOMPart(v)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -29,9 +29,11 @@ func (t Translator) Encode(buf []byte, params []any) ([]byte, error) {
 	}
 	
 	// Сериализуем в RESP
-	buf = t.serializeDOMToRESP(buf, arr)
+	buf.Buf = t.serializeDOMToRESP(buf.Buf, arr)
+
+	// надо сделать замороченную логику с указанием, до какого индекса буфера мы записали
 	
-	return buf, nil
+	return nil
 }
 
 // buildDOMPart переводит тип данных Go в элемент DOM. Поддерживаются только: 

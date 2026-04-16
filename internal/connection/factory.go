@@ -3,9 +3,10 @@ package connection
 import (
 	"sync"
 
-	"github.com/rseleznev/redis_driver/internal/socket"
-	"github.com/rseleznev/redis_driver/internal/transmitter"
 	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/internal/socket"
+	"github.com/rseleznev/redis_driver/internal/translator"
+	"github.com/rseleznev/redis_driver/internal/transmitter"
 	"github.com/rseleznev/redis_driver/pkg/polling"
 )
 
@@ -39,10 +40,10 @@ func (f Factory) NewPoller() (poller, error) {
 	return epoll, epollErr
 }
 
-func (f Factory) NewSender() sender {
-	return transmitter.NewSender()
+func (f Factory) NewCoder() coder {
+	return translator.NewTranslator()
 }
 
-func (f Factory) NewReceiver() receiver {
-	return transmitter.NewReceiver()
+func (f Factory) NewMessenger(socketFd int) messenger {
+	return transmitter.NewTransmitter(socketFd)
 }
