@@ -188,6 +188,10 @@ func (c *Connection) processPollError(_ string, _ error) error {
 }
 
 
+// ------------------------------------------------
+
+// ------------------------------------------------
+
 
 func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	c.mu.Lock()
@@ -200,29 +204,45 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	c.startProcessing()
 	
 	// кодируем в RESP
-	// увеличение буфера отправки!
+	err := c.coder.Encode(c.sendBuf, cmdArgs)
+	if err != nil {
+		// обработка увеличения буфера отправки!
+
+		return nil, err
+	}
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 	
 	// отправляем
+	err = c.send(0)
+	if err != nil {
+		return nil, err
+	}
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
 	// получаем
-	// увеличение буфера получения!
+	err = c.receive()
+	if err != nil {
+		// обработка увеличение буфера получения!	
+
+		return nil, err
+	}
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
 	// декодируем
+	var result any
+	result, err = c.coder.Decode(c.recvBuf.Buf[:c.recvBuf.WritePos])
 
 	// очищаем буферы?
 
 	c.stopProcessing()
 
-	return nil, nil
+	return result, nil
 }
 
 func (c *Connection) send(fromIdx int) error {
