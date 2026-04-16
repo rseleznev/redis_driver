@@ -193,6 +193,7 @@ func (c *Connection) processPollError(_ string, _ error) error {
 // ------------------------------------------------
 
 
+// Process - основной метод, который выполняет работу
 func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	c.mu.Lock()
 	
@@ -245,6 +246,7 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	return result, nil
 }
 
+// send выполняет отправку сообщения
 func (c *Connection) send(fromIdx int) error {
 	var sentBytes int
 	var err error
@@ -289,6 +291,7 @@ func (c *Connection) send(fromIdx int) error {
 	return nil
 }
 
+// receive выполняет получение сообщения
 func (c *Connection) receive() error {
 	err := c.msgr.Receive(c.recvBuf)
 	if err != nil {
@@ -306,7 +309,7 @@ func (c *Connection) receive() error {
 
 		// в буфер получения влезли не все данные
 		case models.ErrRecvMsgTrunc:
-			// увеличиваем буфер?
+			return err
 
 		// соединение сброшено
 		case models.ErrConnectionClosed:
