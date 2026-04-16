@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rseleznev/redis_driver/internal/command"
 	"github.com/rseleznev/redis_driver/internal/connection"
 	"github.com/rseleznev/redis_driver/internal/models"
 )
@@ -14,27 +13,24 @@ type Client struct {
 	opts *models.Options
 
 	// основной механизм отправки команд и получения результатов
-	command.Commander
+	connection.Connector
 }
 
 func NewClient(opts *models.Options) (*Client, error) {
 	// инициализируем опции
 	initOptions(opts)
 
-	// создаем соединение
-	c, err := connection.NewConnection(opts)
+	// создаем коннектор
+	c, err := connection.NewConnector(opts)
 	if err != nil {
 		return nil, err
 	}
-
-	// создаем главного координатора
-	cmdr := command.NewCommander(c)
 
 	// вызываем Hello3()
 
 	return &Client{
 		opts: opts,
-		Commander: cmdr,
+		Connector: c,
 	}, nil
 }
 
@@ -42,7 +38,26 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 	args := make([]any, 0, 1)
 	args = append(args, "PING")
 
-	return "", nil
+	var r any
+	var err error
+
+	for ctx.Err() == nil {
+		r, err = c.Process(ctx, args)
+		if err != nil {
+			if err == models.ErrConnectionCmdInProcess {
+				continue
+			}
+			return "", err
+		}
+		break
+	}
+
+	res, ok := r.(string)
+	if !ok {
+		return "", models.ErrDataAssert
+	}
+
+	return res, nil
 }
 
 func (c *Client) Hello(ctx context.Context) (map[string]string, error) {
