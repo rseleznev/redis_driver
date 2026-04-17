@@ -140,6 +140,10 @@ func (c *Connection) poll(eventType string) error {
 	defer cancel()
 
 	for {
+		if ctx.Err() != nil {
+			return models.ErrPollTimeout
+		}
+		
 		err = c.poller.Add(pUnit)
 		if err != nil {
 			// сокет уже поллится, крутимся в цикле и пробуем отдать наше событие
@@ -178,12 +182,14 @@ func (c *Connection) newContextWithTimeout() (context.Context, context.CancelFun
 	return context.WithTimeout(context.Background(), c.opts.PollingTimeout)
 }
 
-// processPollError обрабатывает ошибки epoll в зависимости от события.
+// processPollError обрабатывает ошибки poller'а в зависимости от события.
 // Если с ошибкой что-то можно сделать, это будет сделано.
 // Например, может переподключиться к серверу или делать ретраи отправки/получения
-func (c *Connection) processPollError(_ string, _ error) error {
+func (c *Connection) processPollError(_ string, err error) error {
 
+	switch err {
 	// внимательно изучить, в каких ситуациях какие флаги устанавливает epoll
+	}
 	
 	return nil
 }
@@ -199,6 +205,8 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	c.mu.Lock()
 
 	if c.isProcessing() {
+		c.mu.Unlock()
+		
 		return nil, models.ErrConnectionCmdInProcess
 	}
 	c.startProcessing()
@@ -218,8 +226,10 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	}
 	
 	// отправляем
-	err = c.send(0)
+	err = c.send(ctx, 0)
 	if err != nil {
+		// здесь может быть ошибка ErrPollTimeout если буфер отправки ядра заполнен
+		
 		return nil, err
 	}
 	if ctx.Err() != nil {
@@ -227,14 +237,21 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	}
 
 	// получаем
-	err = c.receive()
-	if err != nil {
-		// обработка увеличение буфера получения!
-		if err == models.ErrRecvMsgTrunc {
-			return c.receiveWithFilledBuf()	
-		}
+	for ctx.Err() == nil {
+		err = c.receive()
+		if err != nil {
+			// в буфер получения не влезли все данные
+			if err == models.ErrRecvMsgTrunc {
+				c.increaseRecvBuf()
+				continue
+			}
+			
+			// есть наступил таймаут ответа - делаем ретраи?
+			// if err == models.ErrPollTimeout
 
-		return nil, err
+			return nil, err
+		}
+		break
 	}
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
@@ -250,7 +267,11 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 }
 
 // send выполняет отправку сообщения
-func (c *Connection) send(fromIdx int) error {
+func (c *Connection) send(ctx context.Context, fromIdx int) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	
 	var sentBytes int
 	var err error
 	
@@ -259,6 +280,7 @@ func (c *Connection) send(fromIdx int) error {
 	} else {
 		sentBytes, err = c.msgr.Send(c.sendBuf.Buf[fromIdx:])
 	}
+	sentBytes += fromIdx
 	if err != nil {
 		// буфер отправки полон, нужно ждать
 		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
@@ -267,14 +289,14 @@ func (c *Connection) send(fromIdx int) error {
 				return err
 			}
 
-			return c.send(fromIdx)
+			return c.send(ctx, fromIdx)
 		}
 
 		switch err {
 
 		// влезли не все данные
 		case models.ErrSendMsgTrunc:
-			return c.send(sentBytes)
+			return c.send(ctx, sentBytes)
 
 		// соединение сброшено
 		case models.ErrConnectionReset, models.ErrConnectionClosed:
@@ -293,7 +315,7 @@ func (c *Connection) send(fromIdx int) error {
 				return err
 			}
 
-			return c.send(fromIdx)
+			return c.send(ctx, fromIdx)
 
 		// сокет не подключен
 		case models.ErrNotConnected:
@@ -302,7 +324,7 @@ func (c *Connection) send(fromIdx int) error {
 				return err
 			}
 
-			return c.send(fromIdx)
+			return c.send(ctx, fromIdx)
 
 		// все остальные ошибки
 		default:
@@ -353,9 +375,7 @@ func (c *Connection) receive() error {
 	return nil
 }
 
-func (c *Connection) receiveWithFilledBuf() (any, error) {
-	var err error
-	
+func (c *Connection) increaseRecvBuf() {
 	// пробуем увеличить буфер, если позволяют опции
 	if len(c.recvBuf.Buf) == c.opts.ReceiveBufMaxLen {
 		// если не можем - декодируем то, что есть
@@ -367,14 +387,8 @@ func (c *Connection) receiveWithFilledBuf() (any, error) {
 		copy(nBuf, c.recvBuf.Buf)
 
 		c.recvBuf.Buf = nBuf
-
-		err = c.receive()
-		if err != nil { // тут может быть та же ошибка, что буфер заполнен
-			return nil, err
-		}
 	}
 	
-	return nil, nil
 }
 
 
