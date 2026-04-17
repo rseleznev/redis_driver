@@ -227,7 +227,7 @@ func (e *Epoll) processEvents(readySocketsLen int) {
 	// возвращаем результаты, ждущие потоки могут продолжить свое выполнение
 	for s, v := range readySockets {
 		if ch := e.getSocketResultChan(s); ch == nil {
-			e.setSocketUnexpErr(s, v.Err) // случай, когда пришла ошибка, которую никто не ждет
+			e.setSocketUnexpErr(s, v.Err) // случай, когда пришел результат, который никто не ждет
 		} else {
 			ch <- v.Err
 		}
