@@ -197,14 +197,14 @@ func (c *Connection) processPollError(_ string, _ error) error {
 // Process - основной метод, который выполняет работу
 func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	c.mu.Lock()
-	
-	defer c.mu.Unlock()
 
 	if c.isProcessing() {
 		return nil, models.ErrConnectionCmdInProcess
 	}
 	c.startProcessing()
 	defer c.stopProcessing()
+
+	c.mu.Unlock()
 	
 	// кодируем в RESP
 	err := c.coder.Encode(c.sendBuf, cmdArgs)
@@ -229,7 +229,10 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	// получаем
 	err = c.receive()
 	if err != nil {
-		// обработка увеличение буфера получения!	
+		// обработка увеличение буфера получения!
+		if err == models.ErrRecvMsgTrunc {
+			return c.receiveWithFilledBuf()	
+		}
 
 		return nil, err
 	}
@@ -348,6 +351,30 @@ func (c *Connection) receive() error {
 	}
 	
 	return nil
+}
+
+func (c *Connection) receiveWithFilledBuf() (any, error) {
+	var err error
+	
+	// пробуем увеличить буфер, если позволяют опции
+	if len(c.recvBuf.Buf) == c.opts.ReceiveBufMaxLen {
+		// если не можем - декодируем то, что есть
+
+	} else {
+		// если можем - увеличиваем и говорим c.receive() чтобы писал с определенного индекса
+		incr := c.opts.ReceiveBufMaxLen - len(c.recvBuf.Buf)
+		nBuf := make([]byte, incr)
+		copy(nBuf, c.recvBuf.Buf)
+
+		c.recvBuf.Buf = nBuf
+
+		err = c.receive()
+		if err != nil { // тут может быть та же ошибка, что буфер заполнен
+			return nil, err
+		}
+	}
+	
+	return nil, nil
 }
 
 
