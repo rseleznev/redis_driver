@@ -154,8 +154,7 @@ func (c *Connection) poll(eventType string) error {
 			// какие еще ошибки тут могут быть:
 			// - асинхронная ошибка
 			// - неизвестный тип события
-
-			return err
+			return c.processPollError(eventType, err)
 		}
 		break
 	}
