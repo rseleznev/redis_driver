@@ -331,13 +331,14 @@ func (c *Connection) receive() error {
 		case models.ErrRecvMsgTrunc:
 			return err
 
-		// соединение сброшено
-		case models.ErrConnectionClosed:
-			// переподключаемся
-
 		// сокет не подключен
 		case models.ErrNotConnected:
-			// коннектимся
+			err = c.connect()
+			if err != nil {
+				return err
+			}
+
+			return c.receive()
 
 		// все остальные ошибки
 		default:
