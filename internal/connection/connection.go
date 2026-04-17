@@ -23,6 +23,7 @@ type poller interface {
 type socketer interface {
 	GetSocketFd() int
 	Connect(*models.Options) error
+	Close()
 }
 
 type coder interface {
@@ -189,7 +190,7 @@ func (c *Connection) processPollError(_ string, _ error) error {
 
 
 // ------------------------------------------------
-
+//
 // ------------------------------------------------
 
 
@@ -203,6 +204,7 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 		return nil, models.ErrConnectionCmdInProcess
 	}
 	c.startProcessing()
+	defer c.stopProcessing()
 	
 	// кодируем в RESP
 	err := c.coder.Encode(c.sendBuf, cmdArgs)
@@ -241,8 +243,6 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 
 	// очищаем буферы?
 
-	c.stopProcessing()
-
 	return result, nil
 }
 
@@ -264,7 +264,7 @@ func (c *Connection) send(fromIdx int) error {
 				return err
 			}
 
-			return nil
+			return c.send(fromIdx)
 		}
 
 		switch err {
@@ -275,11 +275,31 @@ func (c *Connection) send(fromIdx int) error {
 
 		// соединение сброшено
 		case models.ErrConnectionReset, models.ErrConnectionClosed:
-			// переподключаемся
+			// закрываем текущий сокет
+			c.socket.Close()
+
+			// создаем новый сокет
+			c.socket, err = c.factory.NewSocket(c.opts)
+			if err != nil {
+				return err
+			}
+
+			// подключаем новый сокет
+			err = c.connect()
+			if err != nil {
+				return err
+			}
+
+			return c.send(fromIdx)
 
 		// сокет не подключен
 		case models.ErrNotConnected:
-			// коннектимся
+			err = c.connect()
+			if err != nil {
+				return err
+			}
+
+			return c.send(fromIdx)
 
 		// все остальные ошибки
 		default:

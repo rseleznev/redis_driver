@@ -196,3 +196,7 @@ func (s Socket) Connect(opts *models.Options) error {
 	
 	return nil
 }
+
+func (s Socket) Close()  {
+	syscall.Close(int(s))
+}
