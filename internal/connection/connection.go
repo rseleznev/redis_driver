@@ -214,6 +214,7 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 
 	c.mu.Unlock()
 	
+
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -226,6 +227,7 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 		return nil, err
 	}
 	
+
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -236,29 +238,17 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 		return nil, err
 	}
 
+
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
 	// получаем
-	for ctx.Err() == nil {
-		err = c.receive()
-		if err != nil {
-			// в буфер получения не влезли все данные
-			if err == models.ErrRecvMsgTrunc {
-				c.increaseRecvBuf()
-				continue
-			}
-			
-			// таймаут поллинга истек
-			if err == models.ErrPollTimeout {
-				continue // убавлять счетчик ретраев
-			}
-
-			return nil, err
-		}
-		break
+	err = c.receive(ctx)
+	if err != nil {
+		return nil, err
 	}
+
 
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
@@ -266,7 +256,7 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 
 	// декодируем
 	var result any
-	result, err = c.coder.Decode(c.recvBuf.Buf[:c.recvBuf.WritePos])
+	result, err = c.coder.Decode(c.getRecvBufWithWritePos())
 
 	// очищаем буферы?
 
@@ -354,39 +344,52 @@ func (c *Connection) send(ctx context.Context) error {
 }
 
 // receive выполняет получение сообщения
-func (c *Connection) receive() error {
-	err := c.msgr.Receive(c.recvBuf)
-	if err != nil {
-		// нет данных в буфере получения, нужно ждать
-		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
-			err = c.poll("income")
-			if err != nil {
-				return err
+func (c *Connection) receive(ctx context.Context) error {
+	
+	for ctx.Err() == nil {
+		err := c.msgr.Receive(c.recvBuf) // передаем структуру, чтобы обработчик указал позицию окончания записи
+		if err != nil {
+			// нет данных в буфере получения, нужно ждать
+			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+				err = c.poll("income")
+				if err != nil {
+					// таймаут поллинга истек
+					if err == models.ErrPollTimeout {
+						continue // убавлять счетчик ретраев
+					}
+					
+					return err
+				}
+
+				continue
 			}
 
-			return c.receive()
-		}
+			switch err {
 
-		switch err {
+			// в буфер получения влезли не все данные
+			case models.ErrRecvMsgTrunc:
+				c.increaseRecvBuf()
+				continue
 
-		// в буфер получения влезли не все данные
-		case models.ErrRecvMsgTrunc:
-			return err
+			// сокет не подключен
+			case models.ErrNotConnected:
+				err = c.connect()
+				if err != nil {
+					return err
+				}
 
-		// сокет не подключен
-		case models.ErrNotConnected:
-			err = c.connect()
-			if err != nil {
+				continue
+
+			// все остальные ошибки
+			default:
 				return err
+			
 			}
-
-			return c.receive()
-
-		// все остальные ошибки
-		default:
-			return err
-		
 		}
+	}
+	
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	
 	return nil
@@ -422,6 +425,10 @@ func (c *Connection) increaseRecvBuf() {
 		c.recvBuf.Buf = nBuf
 	}
 	
+}
+
+func (c *Connection) getRecvBufWithWritePos() []byte {
+	return c.recvBuf.Buf[:c.recvBuf.WritePos]
 }
 
 
