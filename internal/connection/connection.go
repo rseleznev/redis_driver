@@ -374,8 +374,15 @@ func (c *Connection) receive(ctx context.Context) error {
 
 			// в буфер получения влезли не все данные
 			case models.ErrRecvMsgTrunc:
-				c.increaseRecvBuf()
-				continue
+				if ok := c.increaseRecvBuf(); ok {
+					// увеличили буфер
+					continue
+				} else {
+					// не можем увеличить буфер
+					// ждем, когда декодер прочитает весь буфер
+					// очищаем буфер
+					continue
+				}
 
 			// сокет не подключен
 			case models.ErrNotConnected:
@@ -440,20 +447,40 @@ func (c *Connection) addSentBytes(sentBytes int) {
 	c.sendBuf.SentBytes += sentBytes
 }
 
-func (c *Connection) increaseRecvBuf() {
-	// пробуем увеличить буфер, если позволяют опции
-	if len(c.recvBuf.Buf) == c.opts.ReceiveBufMaxLen {
-		// если не можем - декодируем то, что есть
-
-	} else {
-		// если можем - увеличиваем и говорим c.receive() чтобы писал с определенного индекса
-		incr := c.opts.ReceiveBufMaxLen - len(c.recvBuf.Buf)
-		nBuf := make([]byte, incr)
-		copy(nBuf, c.recvBuf.Buf)
-
-		c.recvBuf.Buf = nBuf
+func (c *Connection) increaseRecvBuf() bool {
+	// можем ли вообще увеличить буфер
+	if c.recvBufFreeSpaceLen() <= 0 {
+		return false // увеличить не можем
 	}
-	
+
+	// можем ли увеличить в 2 раза
+	if c.recvBufLen()*2 <= c.recvBufMaxLen() {
+		// увеличиваем в 2 раза
+		newBuf := make([]byte, c.recvBufLen()*2)
+		copy(newBuf, c.recvBuf.Buf)
+		c.recvBuf.Buf = newBuf
+
+		return true
+	}
+
+	// увеличиваем насколько возможно
+	newBuf := make([]byte, c.recvBufLen()+c.recvBufFreeSpaceLen())
+	copy(newBuf, c.recvBuf.Buf)
+	c.recvBuf.Buf = newBuf
+
+	return true
+}
+
+func (c *Connection) recvBufFreeSpaceLen() int {
+	return c.recvBufMaxLen() - c.recvBufLen()
+}
+
+func (c *Connection) recvBufMaxLen() int {
+	return c.opts.ReceiveBufMaxLen
+}
+
+func (c *Connection) recvBufLen() int {
+	return len(c.recvBuf.Buf)
 }
 
 func (c *Connection) getRecvBufWithWritePos() []byte {
