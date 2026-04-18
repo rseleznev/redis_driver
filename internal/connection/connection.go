@@ -92,6 +92,7 @@ func NewConnector(opts *models.Options) (Connector, error) {
 	// подключаем сокет
 	err = conn.connect()
 	if err != nil {
+		// делать ретраи при ErrPollTimeout?
 		return nil, err
 	}
 
@@ -213,6 +214,10 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 
 	c.mu.Unlock()
 	
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	// кодируем в RESP
 	err := c.coder.Encode(c.sendBuf, cmdArgs)
 	if err != nil {
@@ -220,17 +225,17 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 
 		return nil, err
 	}
+	
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	
+
 	// отправляем
-	err = c.send(ctx, 0)
+	err = c.send(ctx)
 	if err != nil {
-		// здесь может быть ошибка ErrPollTimeout если буфер отправки ядра заполнен
-		
 		return nil, err
 	}
+
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -245,13 +250,16 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 				continue
 			}
 			
-			// есть наступил таймаут ответа - делаем ретраи?
-			// if err == models.ErrPollTimeout
+			// таймаут поллинга истек
+			if err == models.ErrPollTimeout {
+				continue // убавлять счетчик ретраев
+			}
 
 			return nil, err
 		}
 		break
 	}
+
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -266,70 +274,82 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 }
 
 // send выполняет отправку сообщения
-func (c *Connection) send(ctx context.Context, fromIdx int) error {
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
+func (c *Connection) send(ctx context.Context) error {
 	
 	var sentBytes int
 	var err error
-	
-	if fromIdx == 0 {
-		sentBytes, err = c.msgr.Send(c.sendBuf.Buf)
-	} else {
-		sentBytes, err = c.msgr.Send(c.sendBuf.Buf[fromIdx:])
-	}
-	sentBytes += fromIdx
-	if err != nil {
-		// буфер отправки полон, нужно ждать
-		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
-			err = c.poll("outcome")
-			if err != nil {
-				return err
-			}
 
-			return c.send(ctx, fromIdx)
+	for ctx.Err() == nil {
+		if c.getSentBytes() == 0 {
+			sentBytes, err = c.msgr.Send(c.getSendBuf())
+		} else {
+			sentBytes, err = c.msgr.Send(c.getSendBufWithoutSentBytes())
 		}
+		c.addSentBytes(sentBytes)
+		if err != nil {
+			// буфер отправки полон, нужно ждать
+			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+				err = c.poll("outcome")
+				if err != nil {
+					// таймаут поллинга истек
+					if err == models.ErrPollTimeout {
+						continue // убавлять счетчик ретраев
+					}
+					
+					return err
+				}
+				c.sendBuf.SentBytes = sentBytes
 
-		switch err {
-
-		// влезли не все данные
-		case models.ErrSendMsgTrunc:
-			return c.send(ctx, sentBytes)
-
-		// соединение сброшено
-		case models.ErrConnectionReset, models.ErrConnectionClosed:
-			// закрываем текущий сокет
-			c.socket.Close()
-
-			// создаем новый сокет
-			c.socket, err = c.factory.NewSocket(c.opts)
-			if err != nil {
-				return err
+				continue
 			}
 
-			// подключаем новый сокет
-			err = c.connect()
-			if err != nil {
+			switch err {
+
+			// влезли не все данные
+			case models.ErrSendMsgTrunc:
+				c.sendBuf.SentBytes = sentBytes
+				
+				continue
+
+			// соединение сброшено
+			case models.ErrConnectionReset, models.ErrConnectionClosed:
+				// закрываем текущий сокет
+				c.socket.Close()
+
+				// создаем новый сокет
+				c.socket, err = c.factory.NewSocket(c.opts)
+				if err != nil {
+					return err
+				}
+
+				// подключаем новый сокет
+				err = c.connect()
+				if err != nil {
+					return err
+				}
+
+				c.sendBuf.SentBytes = sentBytes
+				
+				continue
+
+			// сокет не подключен
+			case models.ErrNotConnected:
+				err = c.connect()
+				if err != nil {
+					return err
+				}
+
+				c.sendBuf.SentBytes = sentBytes
+				
+				continue
+
+			// все остальные ошибки
+			default:
 				return err
-			}
-
-			return c.send(ctx, fromIdx)
-
-		// сокет не подключен
-		case models.ErrNotConnected:
-			err = c.connect()
-			if err != nil {
-				return err
-			}
-
-			return c.send(ctx, fromIdx)
-
-		// все остальные ошибки
-		default:
-			return err
-		
-		}	
+			
+			}	
+		}
+		break
 	}
 	
 	return nil
@@ -372,6 +392,22 @@ func (c *Connection) receive() error {
 	}
 	
 	return nil
+}
+
+func (c *Connection) getSendBuf() []byte {
+	return c.sendBuf.Buf
+}
+
+func (c *Connection) getSendBufWithoutSentBytes() []byte {
+	return c.sendBuf.Buf[c.getSentBytes():]
+}
+
+func (c *Connection) getSentBytes() int {
+	return c.sendBuf.SentBytes
+}
+
+func (c *Connection) addSentBytes(sentBytes int) {
+	c.sendBuf.SentBytes += sentBytes
 }
 
 func (c *Connection) increaseRecvBuf() {

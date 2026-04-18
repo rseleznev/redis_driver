@@ -70,6 +70,7 @@ type PollingResult struct {
 
 type SendBuf struct {
 	WritePos int
+	SentBytes int
 	Buf []byte
 }
 
