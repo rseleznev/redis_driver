@@ -6,19 +6,23 @@ type Transmitter struct {
 	SocketFd int
 }
 
-func NewTransmitter(socketFd int) Transmitter {
-	return Transmitter{
+func NewTransmitter(socketFd int) *Transmitter {
+	return &Transmitter{
 		SocketFd: socketFd,
 	}
 }
 
-func (s Transmitter) Send(data []byte) (int, error) {
+func (t *Transmitter) Send(data []byte) (int, error) {
 	
 	
 	return 0, nil
 }
 
-func (s Transmitter) Receive(data *models.RecvBuf) error {
+func (t *Transmitter) Receive(data *models.RecvBuf) error {
 	
 	return nil
+}
+
+func (t *Transmitter) ChangeSocketFd(newSocketFd int) {
+	t.SocketFd = newSocketFd
 }

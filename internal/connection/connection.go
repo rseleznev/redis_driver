@@ -34,6 +34,7 @@ type coder interface {
 type messenger interface {
 	Send([]byte) (int, error)
 	Receive(*models.RecvBuf) error
+	ChangeSocketFd(int)
 }
 
 
@@ -418,7 +419,7 @@ func (c *Connection) reconnect() error {
 		return err
 	}
 
-	// обновить socketFd в трансмиттере
+	c.msgr.ChangeSocketFd(c.socket.GetSocketFd())
 
 	return nil
 }
