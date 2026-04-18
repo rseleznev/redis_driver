@@ -298,7 +298,6 @@ func (c *Connection) send(ctx context.Context) error {
 					
 					return err
 				}
-				c.sendBuf.SentBytes = sentBytes
 
 				continue
 			}
@@ -307,7 +306,6 @@ func (c *Connection) send(ctx context.Context) error {
 
 			// влезли не все данные
 			case models.ErrSendMsgTrunc:
-				c.sendBuf.SentBytes = sentBytes
 				
 				continue
 
@@ -327,8 +325,6 @@ func (c *Connection) send(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-
-				c.sendBuf.SentBytes = sentBytes
 				
 				continue
 
@@ -338,8 +334,6 @@ func (c *Connection) send(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-
-				c.sendBuf.SentBytes = sentBytes
 				
 				continue
 
@@ -350,6 +344,10 @@ func (c *Connection) send(ctx context.Context) error {
 			}	
 		}
 		break
+	}
+
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 	
 	return nil
