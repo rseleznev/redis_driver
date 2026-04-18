@@ -92,7 +92,6 @@ func NewConnector(opts *models.Options) (Connector, error) {
 	// подключаем сокет
 	err = conn.connect()
 	if err != nil {
-		// делать ретраи при ErrPollTimeout?
 		return nil, err
 	}
 
@@ -155,7 +154,7 @@ func (c *Connection) poll(eventType string) error {
 			// какие еще ошибки тут могут быть:
 			// - асинхронная ошибка
 			// - неизвестный тип события
-			return c.processPollError(eventType, err)
+			return c.processPollError(err)
 		}
 		break
 	}
@@ -164,7 +163,7 @@ func (c *Connection) poll(eventType string) error {
 	select {
 	case err = <-pUnit.ResultChan:
 		if err != nil {
-			return c.processPollError(eventType, err)
+			return c.processPollError(err)
 		}
 
 	case <-ctx.Done():
@@ -182,16 +181,24 @@ func (c *Connection) newContextWithTimeout() (context.Context, context.CancelFun
 	return context.WithTimeout(context.Background(), c.opts.PollingTimeout)
 }
 
-// processPollError обрабатывает ошибки poller'а в зависимости от события.
-// Если с ошибкой что-то можно сделать, это будет сделано.
-// Например, может переподключиться к серверу или делать ретраи отправки/получения
-func (c *Connection) processPollError(_ string, err error) error {
+// processPollError обрабатывает ошибки poller'а и в случаях, когда что-то можно сделать
+// (например, переподключиться), возвращает удобную ошибку вызывающей функции для обработки
+func (c *Connection) processPollError(err error) error {
 
-	switch err {
-	// внимательно изучить, в каких ситуациях какие флаги устанавливает epoll
+	// флаги ошибок события
+	if errors.Is(err, models.ErrSocketEvent) || errors.Is(err, models.ErrSocketHUPEvent) || errors.Is(err, models.ErrSocketRDHUPEvent) {
+		return models.ErrConnectionClosed
 	}
-	
-	return nil
+
+	// ошибки SO_ERROR
+	if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ETIMEDOUT) {
+		return models.ErrConnectionClosed
+	}
+	if errors.Is(err, syscall.ECONNRESET) {
+		return models.ErrConnectionReset
+	}
+
+	return err
 }
 
 
@@ -285,6 +292,14 @@ func (c *Connection) send(ctx context.Context) error {
 					if err == models.ErrPollTimeout {
 						continue // убавлять счетчик ретраев
 					}
+					// соединение закрыто сервером
+					if err == models.ErrConnectionReset || err == models.ErrConnectionClosed {
+						err = c.reconnect()
+						if err != nil {
+							return err
+						}
+						continue
+					}
 					
 					return err
 				}
@@ -301,17 +316,7 @@ func (c *Connection) send(ctx context.Context) error {
 
 			// соединение сброшено
 			case models.ErrConnectionReset, models.ErrConnectionClosed:
-				// закрываем текущий сокет
-				c.socket.Close()
-
-				// создаем новый сокет
-				c.socket, err = c.factory.NewSocket(c.opts)
-				if err != nil {
-					return err
-				}
-
-				// подключаем новый сокет
-				err = c.connect()
+				err = c.reconnect()
 				if err != nil {
 					return err
 				}
@@ -392,6 +397,29 @@ func (c *Connection) receive(ctx context.Context) error {
 		return ctx.Err()
 	}
 	
+	return nil
+}
+
+func (c *Connection) reconnect() error {
+	var err error
+	
+	// закрываем текущий сокет
+	c.socket.Close()
+
+	// создаем новый сокет
+	c.socket, err = c.factory.NewSocket(c.opts)
+	if err != nil {
+		return err
+	}
+
+	// подключаем новый сокет
+	err = c.connect()
+	if err != nil {
+		return err
+	}
+
+	// обновить socketFd в трансмиттере
+
 	return nil
 }
 
