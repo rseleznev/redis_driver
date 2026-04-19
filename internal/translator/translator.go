@@ -1,7 +1,15 @@
 package translator
 
-type Translator struct {}
+import "github.com/rseleznev/redis_driver/internal/models"
 
-func NewTranslator() Translator {
-	return Translator{}
+type Translator struct {
+	// декодирование не завершено
+	decodeTrunc bool
+
+	// незавершенный DOM-объект
+	domTrunc models.DOMPart
+}
+
+func NewTranslator() *Translator {
+	return &Translator{}
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-func (t Translator) Decode(buf []byte) (any, error) {
+func (t *Translator) Decode(buf []byte) (any, error) {
 	dom := t.parse(buf)
 
 	res := t.deserialize(dom)
@@ -23,7 +23,7 @@ func (t Translator) Decode(buf []byte) (any, error) {
 }
 
 // Parse парсит сырые данные и формирует корневой DOM-объект
-func (t Translator) parse(input []byte) models.DOMPart {
+func (t *Translator) parse(input []byte) models.DOMPart {
 	if len(input) == 0 {
 		return models.DOMPart{}
 	}
@@ -45,7 +45,7 @@ func (t Translator) parse(input []byte) models.DOMPart {
 
 // parsePart парсит часть (элемент), принимает начальный индекс и срез, возвращает индекс,
 // на котором остановился и прочитанную часть
-func (t Translator) parsePart(index int, input []byte) (int, models.DOMPart) {
+func (t *Translator) parsePart(index int, input []byte) (int, models.DOMPart) {
 	var part models.DOMPart
 	var partValue []byte
 
@@ -183,7 +183,7 @@ func (t Translator) parsePart(index int, input []byte) (int, models.DOMPart) {
 }
 
 // parsePartLen определяет длину элемента (может передаваться несколькими байтами)
-func (t Translator) parsePartLen(index int, input []byte) (int, int) {
+func (t *Translator) parsePartLen(index int, input []byte) (int, int) {
 	var partLen int
 	var lenBytes []byte
 
@@ -203,8 +203,90 @@ func (t Translator) parsePartLen(index int, input []byte) (int, int) {
 	return index, partLen
 }
 
+func (t *Translator) DecodeWithTrunc(input []byte) bool {
+	if t.decodeTrunc == false {
+		t.decodeTrunc = true
+		
+		return t.parseWithTrunc(input)	
+	}
+	return t.parseWithTruncProceed(input)
+}
+
+func (t *Translator) parsePartNew(idx int, input []byte) (int, models.DOMPart) {
+	// по идее такого быть не должно
+	if idx == len(input) {
+		return idx, models.DOMPart{}
+	}
+	
+	var part models.DOMPart
+
+	pt := t.parsePartType(input[idx])
+	part.PartType = pt
+
+	idx++
+	if idx == len(input) {
+		return idx, part
+	}
+
+	return idx, part
+}
+
+func (t *Translator) parsePartType(b byte) string {
+	
+	switch b {
+	case '+', '$': // Simple string // Bulk strings
+		return "string"
+
+	case '%': // Maps
+		return "map"
+
+	case ':': // Integers
+		return "int"
+	
+	case '*': // Arrays
+		return "array"
+
+	case '_': // Nil
+		return "null"
+
+	case '-': // Simple Errors
+		return "error"
+
+	default:
+		return ""
+	}
+}
+
+func (t *Translator) parseWithTrunc(input []byte) bool {
+	var part models.DOMPart
+
+	for i, v := range input {
+		if i == 0 && v == '$' {
+			part.PartType = "string"
+			continue
+		}
+		if i == 1 {
+			_, part.ValueLen = t.parsePartLen(i, input)
+			part.Value = make([]byte, 0, part.ValueLen)
+			continue
+		}
+		if v == '\r' || v == '\n' {
+			continue
+		}
+		part.Value = append(part.Value, v)
+	}
+	t.domTrunc = part
+	
+	return true
+}
+
+func (t *Translator) parseWithTruncProceed(input []byte) bool {
+	
+	return true
+}
+
 // deserialize десериализует DOM-объект в тип данных Go
-func (t Translator) deserialize(domObj models.DOMPart) any {
+func (t *Translator) deserialize(domObj models.DOMPart) any {
 	var result any
 
 	switch domObj.PartType {
@@ -241,7 +323,7 @@ func (t Translator) deserialize(domObj models.DOMPart) any {
 }
 
 // deserializeError формирует тип error из объекта DOM
-func (t Translator) deserializeError(domObj models.DOMPart) error {
+func (t *Translator) deserializeError(domObj models.DOMPart) error {
 	s := string(domObj.Value)
 	strParts := strings.Fields(s)
 
