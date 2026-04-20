@@ -3,13 +3,37 @@ package translator
 import "github.com/rseleznev/redis_driver/internal/models"
 
 type Translator struct {
-	// декодирование не завершено
-	decodeTrunc bool
+	decodingData []byte
+	// продолжаем декодирование или декодируем сначала
+	decodeProceeding bool
 
-	// незавершенный DOM-объект
-	domTrunc models.DOMPart
+	// незаконченные декодируемые объекты
+	decodingDOMPart []models.DOMPart
+
+	// декодированные DOM-объекты
+	decodedDOMs []models.DOMPart
 }
 
 func NewTranslator() *Translator {
 	return &Translator{}
+}
+
+func (t *Translator) isDecodeProceeding() bool {
+	return t.decodeProceeding
+}
+
+func (t *Translator) setDecodeProceeding() {
+	t.decodeProceeding = true
+}
+
+func (t *Translator) setDecodingData(d []byte) {
+	t.decodingData = d
+}
+
+func (t *Translator) decodingDataLen() int {
+	return len(t.decodingData)
+}
+
+func (t *Translator) isDataEnd(idx int) bool {
+	return idx >= t.decodingDataLen()
 }
