@@ -1,6 +1,10 @@
 package translator
 
-import "github.com/rseleznev/redis_driver/internal/models"
+import (
+	"strconv"
+
+	"github.com/rseleznev/redis_driver/internal/models"
+)
 
 func (t *Translator) DecodeWithProceeding(input []byte) bool {
 	// закидываем срез в структуру
@@ -39,7 +43,7 @@ func (t *Translator) parsePartNew(idx int) int {
 		idx, finished, part = t.parseSimpleString(idx)
 
 	case '$': // Bulk strings
-		// парсим строку
+		idx, finished, part = t.parseBulkString(idx)
 	
 	case '%': // Maps
 		// парсим map
@@ -61,9 +65,9 @@ func (t *Translator) parsePartNew(idx int) int {
 	}
 
 	if !finished {
-		t.decodingDOMPart = append(t.decodingDOMPart, part)
+		t.decodingDOMPart = part
 	} else {
-		t.decodedDOMs = append(t.decodedDOMs, part)
+		t.decodedDOM = part // будет добавляться по-разному в зависимости от типа!
 	}
 
 	return idx
@@ -94,6 +98,77 @@ func (t *Translator) parseSimpleString(idx int) (int, bool, models.DOMPart) {
 		simpleString.Value = append(simpleString.Value, t.decodingData[idx])
 		idx++
 	}
+	simpleString.ValueLen = len(simpleString.Value)
 	
 	return idx, true, simpleString
+}
+
+func (t *Translator) parseBulkString(idx int) (int, bool, models.DOMPart) {
+	var bulkString models.DOMPart
+	var finished bool
+
+	bulkString.PartType = "string"
+	idx++
+
+	if t.isDataEnd(idx) {
+		return idx, false, bulkString
+	}
+	idx, finished, bulkString.ValueLenBytes = t.parsePartLenNew(idx)
+	
+	if finished {
+		lenString := string(bulkString.ValueLenBytes)
+		bulkString.ValueLen, _ = strconv.Atoi(lenString)
+	} else {
+		return idx, false, bulkString
+	}
+	idx++
+
+	for {
+		if t.isDataEnd(idx) {
+			return idx, false, bulkString
+		}
+		
+		if t.decodingData[idx] == '\r' {
+			idx++
+			if t.isDataEnd(idx) {
+				return idx, false, bulkString
+			}
+
+			if t.decodingData[idx] == '\n' {
+				break
+			}
+		}
+
+		bulkString.Value = append(bulkString.Value, t.decodingData[idx])
+		idx++
+	}
+
+	return idx, true, bulkString
+}
+
+func (t *Translator) parsePartLenNew(idx int) (int, bool, []byte) {
+	valueLenBytes := make([]byte, 0, 5)
+	idx++
+	
+	for {
+		if t.isDataEnd(idx) {
+			return idx, false, valueLenBytes
+		}
+		
+		if t.decodingData[idx] == '\r' {
+			idx++
+			if t.isDataEnd(idx) {
+				return idx, false, valueLenBytes
+			}
+
+			if t.decodingData[idx] == '\n' {
+				break
+			}
+		}
+
+		valueLenBytes = append(valueLenBytes, t.decodingData[idx])
+		idx++
+	}
+
+	return idx, true, valueLenBytes
 }

@@ -7,11 +7,11 @@ type Translator struct {
 	// продолжаем декодирование или декодируем сначала
 	decodeProceeding bool
 
-	// незаконченные декодируемые объекты
-	decodingDOMPart []models.DOMPart
+	// незаконченный декодируемый объект
+	decodingDOMPart models.DOMPart
 
-	// декодированные DOM-объекты
-	decodedDOMs []models.DOMPart
+	// декодированный DOM-объект
+	decodedDOM models.DOMPart
 }
 
 func NewTranslator() *Translator {
