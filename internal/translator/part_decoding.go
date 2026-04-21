@@ -6,7 +6,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-func (t *Translator) DecodeWithProceeding(input []byte) bool {
+func (t *Translator) DecodeWithProceeding(input []byte) {
 	// закидываем срез в структуру
 	t.setDecodingData(input)
 
@@ -29,8 +29,6 @@ func (t *Translator) DecodeWithProceeding(input []byte) bool {
 
 	// указываем, что нужно будет продолжить декодирование
 	t.setDecodeProceeding()
-
-	return true
 }
 
 func (t *Translator) parsePartNew(idx int) int {
