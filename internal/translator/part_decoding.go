@@ -45,10 +45,10 @@ func (t *Translator) parsePartNew(idx int) int {
 		idx, finished, part = t.parseBulkString(idx)
 	
 	case '%': // Maps
-		// парсим map
+		idx, finished, part = t.parseMap(idx)
 
 	case ':': // Integers
-		// парсим число
+		idx, finished, part = t.parseInteger(idx)
 	
 	case '*': // Arrays
 		// парсим массив
@@ -181,6 +181,9 @@ func (t *Translator) parseMap(idx int) (int, bool, models.DOMPart) {
 		case '$': // Bulk strings
 			idx, finished, mapPart = t.parseBulkString(idx)
 
+		case ':': // Integers
+			idx, finished, mapPart = t.parseInteger(idx)
+		
 		// ...
 		}
 
@@ -193,6 +196,35 @@ func (t *Translator) parseMap(idx int) (int, bool, models.DOMPart) {
 	}
 
 	return idx, true, m
+}
+
+func (t *Translator) parseInteger(idx int) (int, bool, models.DOMPart) {
+	var integer models.DOMPart
+	
+	integer.PartType = "int"
+	idx++
+
+	for {
+		if t.isDataEnded(idx) {
+			return idx, false, integer
+		}
+		
+		if t.decodingData[idx] == '\r' {
+			idx++
+			if t.isDataEnded(idx) {
+				return idx, false, integer
+			}
+
+			if t.decodingData[idx] == '\n' {
+				break
+			}
+		}
+
+		integer.Value = append(integer.Value, t.decodingData[idx])
+		idx++
+	}
+
+	return idx, true, integer
 }
 
 func (t *Translator) parsePartLenNew(idx int) (int, bool, []byte) {
