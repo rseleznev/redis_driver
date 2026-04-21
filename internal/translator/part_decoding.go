@@ -10,14 +10,18 @@ func (t *Translator) DecodeWithProceeding(input []byte) {
 	// закидываем срез в структуру
 	t.setDecodingData(input)
 
+	var idx int
+
 	// декодируем с начала или продолжаем
 	if t.isDecodeProceeding() {
 		// декодирование продолжается не с начала
-		// продолжаем декодировать t.decodingDOMPart
-		// return
+		// дособираем незаконченный объект
+		idx = t.makePartDone()
+		idx++
 	}
-
-	var idx int
+	if t.isDataEnded(idx) {
+		return
+	}
 
 	// декодируем с начала
 	for {
@@ -254,7 +258,7 @@ func (t *Translator) parsePartLenNew(idx int) (int, bool, []byte) {
 	return idx, true, valueLenBytes
 }
 
-func (t *Translator) makePartDone() (int, bool) {
+func (t *Translator) makePartDone() int {
 	var idx int
 
 	decodingPart := t.decodingDOMPart
@@ -263,13 +267,13 @@ func (t *Translator) makePartDone() (int, bool) {
 	case "s_string":
 		for {
 			if t.isDataEnded(idx) {
-				return idx, false
+				return idx
 			}
 			
 			if t.decodingData[idx] == '\r' {
 				idx++
 				if t.isDataEnded(idx) {
-					return idx, false
+					return idx
 				}
 
 				if t.decodingData[idx] == '\n' {
@@ -282,7 +286,15 @@ func (t *Translator) makePartDone() (int, bool) {
 		}
 		decodingPart.ValueLen = len(decodingPart.Value)
 
+		if t.decodedDOM == nil {
+			t.decodedDOM = decodingPart
+			t.decodingDOMPart = nil
+		} else {
+			t.decodedDOM.Content = append(t.decodedDOM.Content, *decodingPart) // возможны проблемы, если будет
+			// несколько корневых объектов
+		}
+
 	}
 
-	return idx, true
+	return idx
 }
