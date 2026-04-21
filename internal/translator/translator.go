@@ -10,8 +10,8 @@ type Translator struct {
 	// незаконченный декодируемый объект
 	decodingDOMPart *models.DOMPart
 
-	// декодированный DOM-объект
-	decodedDOM *models.DOMPart
+	// декодированные DOM-объекты
+	decodedDOM []models.DOMPart
 }
 
 func NewTranslator() *Translator {

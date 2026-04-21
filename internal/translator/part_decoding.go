@@ -11,6 +11,8 @@ func (t *Translator) DecodeWithProceeding(input []byte) {
 	t.setDecodingData(input)
 
 	var idx int
+	var finished bool
+	var part models.DOMPart
 
 	// декодируем с начала или продолжаем
 	if t.isDecodeProceeding() {
@@ -25,7 +27,14 @@ func (t *Translator) DecodeWithProceeding(input []byte) {
 
 	// декодируем с начала
 	for {
-		idx = t.parsePartNew(idx)
+		idx, finished, part = t.parsePartNew(idx)
+		if !finished {
+			t.decodingDOMPart = &part
+
+			break
+		}
+		t.decodedDOM = append(t.decodedDOM, part)
+		
 		idx++
 		if idx >= t.decodingDataLen() {
 			break
@@ -36,7 +45,7 @@ func (t *Translator) DecodeWithProceeding(input []byte) {
 	t.setDecodeProceeding()
 }
 
-func (t *Translator) parsePartNew(idx int) int {
+func (t *Translator) parsePartNew(idx int) (int, bool, models.DOMPart) {
 	var finished bool
 	var part models.DOMPart
 
@@ -55,7 +64,7 @@ func (t *Translator) parsePartNew(idx int) int {
 		idx, finished, part = t.parseInteger(idx)
 	
 	case '*': // Arrays
-		// парсим массив
+		idx, finished, part = t.parseArray(idx)
 
 	case '_': // Nil
 		// парсим nil
@@ -67,16 +76,7 @@ func (t *Translator) parsePartNew(idx int) int {
 		panic("unsupported RESP3 data type")
 	}
 
-	if !finished {
-		t.decodingDOMPart = &part
-	} else {
-		if t.decodedDOM == nil {
-			t.decodedDOM = &part
-		}
-		t.decodedDOM.Content = append(t.decodedDOM.Content, part)
-	}
-
-	return idx
+	return idx, finished, part
 }
 
 func (t *Translator) parseSimpleString(idx int) (int, bool, models.DOMPart) {
@@ -178,19 +178,7 @@ func (t *Translator) parseMap(idx int) (int, bool, models.DOMPart) {
 			return idx, false, m
 		}
 
-		switch t.decodingData[idx] {
-		case '+': // Simple string 
-			idx, finished, mapPart = t.parseSimpleString(idx)
-
-		case '$': // Bulk strings
-			idx, finished, mapPart = t.parseBulkString(idx)
-
-		case ':': // Integers
-			idx, finished, mapPart = t.parseInteger(idx)
-		
-		// ...
-		}
-
+		idx, finished, mapPart = t.parsePartNew(idx)
 		m.Content = append(m.Content, mapPart)
 
 		if !finished {
@@ -231,6 +219,45 @@ func (t *Translator) parseInteger(idx int) (int, bool, models.DOMPart) {
 	return idx, true, integer
 }
 
+func (t *Translator) parseArray(idx int) (int, bool, models.DOMPart) {
+	var arr models.DOMPart
+	var finished bool
+
+	arr.PartType = "array"
+	idx++
+
+	if t.isDataEnded(idx) {
+		return idx, false, arr
+	}
+
+	idx, finished, arr.ContentLenBytes = t.parsePartLenNew(idx)
+	if !finished {
+		return idx, false, arr
+	}
+	lenString := string(arr.ContentLenBytes)
+	arr.ContentLen, _ = strconv.Atoi(lenString)
+
+	var arrPart models.DOMPart
+	partsToCollect := arr.ContentLen
+
+	for partsToCollect > 0 {
+		idx++
+		if t.isDataEnded(idx) {
+			return idx, false, arr
+		}
+
+		idx, finished, arrPart = t.parsePartNew(idx)
+		arr.Content = append(arr.Content, arrPart)
+
+		if !finished {
+			return idx, false, arr
+		}
+		partsToCollect--
+	}
+
+	return idx, true, arr
+}
+
 func (t *Translator) parsePartLenNew(idx int) (int, bool, []byte) {
 	valueLenBytes := make([]byte, 0, 5)
 	idx++
@@ -260,6 +287,7 @@ func (t *Translator) parsePartLenNew(idx int) (int, bool, []byte) {
 
 func (t *Translator) makePartDone() int {
 	var idx int
+	finished := true
 
 	decodingPart := t.decodingDOMPart
 
@@ -267,13 +295,15 @@ func (t *Translator) makePartDone() int {
 	case "s_string":
 		for {
 			if t.isDataEnded(idx) {
-				return idx
+				finished = false
+				break
 			}
 			
 			if t.decodingData[idx] == '\r' {
 				idx++
 				if t.isDataEnded(idx) {
-					return idx
+					finished = false
+					break
 				}
 
 				if t.decodingData[idx] == '\n' {
@@ -284,16 +314,12 @@ func (t *Translator) makePartDone() int {
 			decodingPart.Value = append(decodingPart.Value, t.decodingData[idx])
 			idx++
 		}
-		decodingPart.ValueLen = len(decodingPart.Value)
-
-		if t.decodedDOM == nil {
-			t.decodedDOM = decodingPart
-			t.decodingDOMPart = nil
-		} else {
-			t.decodedDOM.Content = append(t.decodedDOM.Content, *decodingPart) // возможны проблемы, если будет
-			// несколько корневых объектов
+		if !finished {
+			return idx
 		}
-
+		
+		t.decodingDOMPart = nil
+		t.decodedDOM = append(t.decodedDOM, *decodingPart)
 	}
 
 	return idx
