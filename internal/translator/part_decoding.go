@@ -117,12 +117,11 @@ func (t *Translator) parseBulkString(idx int) (int, bool, models.DOMPart) {
 	}
 	idx, finished, bulkString.ValueLenBytes = t.parsePartLenNew(idx)
 	
-	if finished {
-		lenString := string(bulkString.ValueLenBytes)
-		bulkString.ValueLen, _ = strconv.Atoi(lenString)
-	} else {
+	if !finished {
 		return idx, false, bulkString
 	}
+	lenString := string(bulkString.ValueLenBytes)
+	bulkString.ValueLen, _ = strconv.Atoi(lenString)
 	idx++
 
 	for {
@@ -146,6 +145,54 @@ func (t *Translator) parseBulkString(idx int) (int, bool, models.DOMPart) {
 	}
 
 	return idx, true, bulkString
+}
+
+func (t *Translator) parseMap(idx int) (int, bool, models.DOMPart) {
+	var m models.DOMPart
+	var finished bool
+
+	m.PartType = "map"
+	idx++
+
+	if t.isDataEnded(idx) {
+		return idx, false, m
+	}
+	idx, finished, m.ContentLenBytes = t.parsePartLenNew(idx)
+
+	if !finished {
+		return idx, false, m
+	}
+	lenString := string(m.ContentLenBytes)
+	m.ContentLen, _ = strconv.Atoi(lenString)
+
+	var mapPart models.DOMPart
+	partsToCollect := m.ContentLen*2
+
+	for partsToCollect > 0 {
+		idx++
+		if t.isDataEnded(idx) {
+			return idx, false, m
+		}
+
+		switch t.decodingData[idx] {
+		case '+': // Simple string 
+			idx, finished, mapPart = t.parseSimpleString(idx)
+
+		case '$': // Bulk strings
+			idx, finished, mapPart = t.parseBulkString(idx)
+
+		// ...
+		}
+
+		m.Content = append(m.Content, mapPart)
+
+		if !finished {
+			return idx, false, m
+		}
+		partsToCollect--
+	}
+
+	return idx, true, m
 }
 
 func (t *Translator) parsePartLenNew(idx int) (int, bool, []byte) {
