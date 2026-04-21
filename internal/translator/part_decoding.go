@@ -22,6 +22,7 @@ func (t *Translator) DecodeWithProceeding(input []byte) {
 	// декодируем с начала
 	for {
 		idx = t.parsePartNew(idx)
+		idx++
 		if idx >= t.decodingDataLen() {
 			break
 		}
@@ -63,9 +64,12 @@ func (t *Translator) parsePartNew(idx int) int {
 	}
 
 	if !finished {
-		t.decodingDOMPart = part
+		t.decodingDOMPart = &part
 	} else {
-		t.decodedDOM = part // будет добавляться по-разному в зависимости от типа!
+		if t.decodedDOM == nil {
+			t.decodedDOM = &part
+		}
+		t.decodedDOM.Content = append(t.decodedDOM.Content, part)
 	}
 
 	return idx
