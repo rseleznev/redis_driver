@@ -34,6 +34,6 @@ func (t *Translator) decodingDataLen() int {
 	return len(t.decodingData)
 }
 
-func (t *Translator) isDataEnd(idx int) bool {
+func (t *Translator) isDataEnded(idx int) bool {
 	return idx >= t.decodingDataLen()
 }

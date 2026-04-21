@@ -80,13 +80,13 @@ func (t *Translator) parseSimpleString(idx int) (int, bool, models.DOMPart) {
 	idx++
 
 	for {
-		if t.isDataEnd(idx) {
+		if t.isDataEnded(idx) {
 			return idx, false, simpleString
 		}
 		
 		if t.decodingData[idx] == '\r' {
 			idx++
-			if t.isDataEnd(idx) {
+			if t.isDataEnded(idx) {
 				return idx, false, simpleString
 			}
 
@@ -110,7 +110,7 @@ func (t *Translator) parseBulkString(idx int) (int, bool, models.DOMPart) {
 	bulkString.PartType = "string"
 	idx++
 
-	if t.isDataEnd(idx) {
+	if t.isDataEnded(idx) {
 		return idx, false, bulkString
 	}
 	idx, finished, bulkString.ValueLenBytes = t.parsePartLenNew(idx)
@@ -124,13 +124,13 @@ func (t *Translator) parseBulkString(idx int) (int, bool, models.DOMPart) {
 	idx++
 
 	for {
-		if t.isDataEnd(idx) {
+		if t.isDataEnded(idx) {
 			return idx, false, bulkString
 		}
 		
 		if t.decodingData[idx] == '\r' {
 			idx++
-			if t.isDataEnd(idx) {
+			if t.isDataEnded(idx) {
 				return idx, false, bulkString
 			}
 
@@ -151,13 +151,13 @@ func (t *Translator) parsePartLenNew(idx int) (int, bool, []byte) {
 	idx++
 	
 	for {
-		if t.isDataEnd(idx) {
+		if t.isDataEnded(idx) {
 			return idx, false, valueLenBytes
 		}
 		
 		if t.decodingData[idx] == '\r' {
 			idx++
-			if t.isDataEnd(idx) {
+			if t.isDataEnded(idx) {
 				return idx, false, valueLenBytes
 			}
 
