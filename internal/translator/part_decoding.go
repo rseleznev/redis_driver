@@ -78,7 +78,7 @@ func (t *Translator) parsePartNew(idx int) int {
 func (t *Translator) parseSimpleString(idx int) (int, bool, models.DOMPart) {
 	var simpleString models.DOMPart
 
-	simpleString.PartType = "string"
+	simpleString.PartType = "s_string"
 	idx++
 
 	for {
@@ -252,4 +252,37 @@ func (t *Translator) parsePartLenNew(idx int) (int, bool, []byte) {
 	}
 
 	return idx, true, valueLenBytes
+}
+
+func (t *Translator) makePartDone() (int, bool) {
+	var idx int
+
+	decodingPart := t.decodingDOMPart
+
+	switch decodingPart.PartType {
+	case "s_string":
+		for {
+			if t.isDataEnded(idx) {
+				return idx, false
+			}
+			
+			if t.decodingData[idx] == '\r' {
+				idx++
+				if t.isDataEnded(idx) {
+					return idx, false
+				}
+
+				if t.decodingData[idx] == '\n' {
+					break
+				}
+			}
+
+			decodingPart.Value = append(decodingPart.Value, t.decodingData[idx])
+			idx++
+		}
+		decodingPart.ValueLen = len(decodingPart.Value)
+
+	}
+
+	return idx, true
 }
