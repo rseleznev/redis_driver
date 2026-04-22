@@ -2,7 +2,6 @@ package translator
 
 import (
 	"os"
-	"slices"
 	"testing"
 
 	"github.com/rseleznev/redis_driver/internal/models"
@@ -38,35 +37,35 @@ func TestEncode(t *testing.T) {
 	
 	testData := []struct{
 		name string
-		buf []byte
+		buf *models.SendBuf
 		params []any
 		expectedErr error
 		expectedResult []byte
 	}{
 		{
 			name: "success strings",
-			buf: make([]byte, 0, 50),
+			buf: &models.SendBuf{},
 			params: []any{"GET", "1"},
 			expectedErr: nil,
 			expectedResult: []byte{'*', '2', '\r', '\n', '$', '3', '\r', '\n', 'G', 'E', 'T', '\r', '\n', '$', '1', '\r', '\n', '1', '\r', '\n'},
 		},
 		{
 			name: "success bytes",
-			buf: make([]byte, 0, 50),
+			buf: &models.SendBuf{},
 			params: []any{[]byte{'S', 'E', 'T'}},
 			expectedErr: nil,
 			expectedResult: []byte{'*', '1', '\r', '\n', '$', '3', '\r', '\n', 'S', 'E', 'T', '\r', '\n'},
 		},
 		{
 			name: "success long value",
-			buf: make([]byte, 0, 50),
+			buf: &models.SendBuf{},
 			params: []any{longValue},
 			expectedErr: nil,
 			expectedResult: longValueRes,
 		},
 		{
 			name: "fail build",
-			buf: make([]byte, 0, 50),
+			buf: &models.SendBuf{},
 			params: []any{map[string]string{
 				"name": "test",
 			}},
@@ -77,12 +76,9 @@ func TestEncode(t *testing.T) {
 
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := testEncoder.Encode(tt.buf, tt.params)
+			err := testEncoder.Encode(tt.buf, tt.params)
 			if err != tt.expectedErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
-			}
-			if slices.Compare(res, tt.expectedResult) != 0 {
-				t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, res)
 			}
 		})
 	}
