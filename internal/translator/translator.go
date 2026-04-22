@@ -1,11 +1,23 @@
 package translator
 
+import "github.com/rseleznev/redis_driver/internal/models"
+
 type Translator struct {
+	sendBuf *models.SendBuf
+
 	decodingData []byte
 }
 
 func NewTranslator() *Translator {
 	return &Translator{}
+}
+
+func (t *Translator) setSendBuf(buf *models.SendBuf) {
+	t.sendBuf = buf
+}
+
+func (t *Translator) sendBufLen() int {
+	return len(t.sendBuf.Buf)
 }
 
 func (t *Translator) setDecodingData(d []byte) {

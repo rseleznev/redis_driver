@@ -51,6 +51,7 @@ var (
 	ErrSendMsgTrunc = errors.New("redis_driver: sended message truncated")
 	ErrSendNoAccess = errors.New("redis_driver: no permission for sending") // EACCES
 	ErrUnsupportedDataType = errors.New("redis_driver: unsupported data type for serialization")
+	ErrSendBufTooShort = errors.New("redis_driver: send buffer too short to write a command")
 
 	// receiving
 	ErrRecvMsgTrunc = errors.New("redis_driver: received message truncated")
