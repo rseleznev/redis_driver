@@ -2,6 +2,8 @@ package translator
 
 import (
 	"strconv"
+
+	"github.com/rseleznev/redis_driver/internal/models"
 )
 
 func (t *Translator) Decode(input []byte) any {
@@ -15,6 +17,8 @@ func (t *Translator) Decode(input []byte) any {
 	return result
 }
 
+// parsePart парсит "объект", в случае команд PING, SET и GET это будут одиночные строки
+// в случае команды HELLO 3 будет собираться map[string]string
 func (t *Translator) parsePart(idx int) (int, any) {
 
 	// определяем тип объекта
@@ -35,7 +39,8 @@ func (t *Translator) parsePart(idx int) (int, any) {
 		return t.parseArray(idx)
 
 	case '_': // Nil
-		// парсим nil
+		idx += 2	
+		return idx, models.ErrNoValue
 
 	case '-': // Simple Errors
 		// парсим ошибку
