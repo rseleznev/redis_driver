@@ -57,4 +57,5 @@ var (
 	ErrRecvMsgCTrunc = errors.New("redis_driver: received oob-message truncated")
 	ErrNoValue = errors.New("redis_driver: no value for given key")
 	ErrUnknownValueType = errors.New("redis_driver: got unknown value type from server")
+	ErrRecvMsgTooBig = errors.New("redis_driver: receiving buffer reached its max len but message is bigger")
 )

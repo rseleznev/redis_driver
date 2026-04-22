@@ -230,8 +230,6 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	// кодируем в RESP
 	err := c.coder.Encode(c.sendBuf, cmdArgs)
 	if err != nil {
-		// обработка увеличения буфера отправки!
-
 		return nil, err
 	}
 	
@@ -379,9 +377,7 @@ func (c *Connection) receive(ctx context.Context) error {
 					continue
 				} else {
 					// не можем увеличить буфер
-					// ждем, когда декодер прочитает весь буфер
-					// очищаем буфер
-					continue
+					return models.ErrRecvMsgTooBig
 				}
 
 			// сокет не подключен
