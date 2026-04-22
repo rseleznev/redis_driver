@@ -1,266 +1,231 @@
 package translator
 
 import (
-	"errors"
 	"strconv"
-	"strings"
-
-	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-func (t *Translator) Decode(buf []byte) (any, error) {
-	dom := t.parse(buf)
+func (t *Translator) Decode(input []byte) any {
+	// закидываем срез в структуру
+	t.setDecodingData(input)
 
-	res := t.deserialize(dom)
+	var idx int
 
-	switch err := res.(type) {
-	case error:
-		return nil, err
-
-	}
-	
-	return res, nil
-}
-
-// Parse парсит сырые данные и формирует корневой DOM-объект
-func (t *Translator) parse(input []byte) models.DOMPart {
-	if len(input) == 0 {
-		return models.DOMPart{}
-	}
-	
-	idx, root := t.parsePart(0, input)
-	idx++
-
-	if root.ContentLen > 0 {
-		for range root.ContentLen * 2 {
-			offset, part := t.parsePart(idx, input)
-			
-			root.Content = append(root.Content, part)
-			idx = offset + 1
-		}	
-	}
-
-	return root
-}
-
-// parsePart парсит часть (элемент), принимает начальный индекс и срез, возвращает индекс,
-// на котором остановился и прочитанную часть
-func (t *Translator) parsePart(index int, input []byte) (int, models.DOMPart) {
-	var part models.DOMPart
-	var partValue []byte
-
-	switch input[index] {
-	case '+': // Simple string
-		part.PartType = "string"
-		index++
-
-		for {
-			if input[index] == '\r' {
-				if input[index+1] == '\n' {
-					index++
-					break
-				}
-			}
-			partValue = append(partValue, input[index])
-			index++
-		}
-		part.ValueLen = len(partValue)
-		part.Value = append(part.Value, partValue...)
-
-		return index, part
-
-	case '%': // Maps
-		part.PartType = "map"
-		index++
-
-		index, part.ContentLen = t.parsePartLen(index, input)
-
-		return index, part
-
-	case '$': // Bulk strings
-		part.PartType = "string"
-		index++
-
-		index, part.ValueLen = t.parsePartLen(index, input)
-		toFill := part.ValueLen
-		index++
-
-		for toFill > 0 {
-			if input[index] == '\r' {
-				index++
-				continue
-			}
-			if input[index] == '\n' {
-				index++
-				continue
-			}
-			partValue = append(partValue, input[index])
-			index++
-			toFill--
-		}
-		part.Value = append(part.Value, partValue...)
-
-		if input[index] == '\r' {
-			if input[index+1] == '\n' {
-				index++
-				return index, part
-			}
-		}
-
-	case ':': // Integers
-		part.PartType = "int"
-		index++
-
-		for {
-			if input[index] == '\r' {
-				if input[index+1] == '\n' {
-					index++
-					break
-				}
-			}
-			partValue = append(partValue, input[index])
-			index++
-		}
-		part.ValueLen = len(partValue)
-		part.Value = append(part.Value, partValue...)
-
-		return index, part
-	
-	case '*': // Arrays
-		part.PartType = "array"
-		index++
-
-		index, part.ValueLen = t.parsePartLen(index, input)
-		part.ContentLen = part.ValueLen
-
-	case '_': // Nil
-		part.PartType = "null"
-		index += 2
-
-		return index, part
-
-	case '-': // Simple Errors
-		part.PartType = "error"
-		index++
-
-		for {
-			if input[index] == '\r' {
-				if input[index+1] == '\n' {
-					index++
-					break
-				}
-			}
-			partValue = append(partValue, input[index])
-			index++
-		}
-		part.ValueLen = len(partValue)
-		part.Value = append(part.Value, partValue...)
-
-		return index, part
-
-	default:
-		part.PartType = "error"
-		str := []byte("ERR Unknown value type:")
-		part.Value = append(part.Value, str...)
-
-		for {
-			if input[index] == '\r' {
-				if input[index+1] == '\n' {
-					index++
-					break
-				}
-			}
-			partValue = append(partValue, input[index])
-			index++
-		}
-		part.ValueLen = len(partValue)
-		part.Value = append(part.Value, partValue...)
-
-		return index, part
-	}
-
-	return index, part
-}
-
-// parsePartLen определяет длину элемента (может передаваться несколькими байтами)
-func (t *Translator) parsePartLen(index int, input []byte) (int, int) {
-	var partLen int
-	var lenBytes []byte
-
-	for {
-		if input[index] == '\r' {
-			if input[index+1] == '\n' {
-				index++
-				break
-			}
-		}
-		lenBytes = append(lenBytes, input[index])
-		index++
-	}
-	lenString := string(lenBytes)
-	partLen, _ = strconv.Atoi(lenString)
-
-	return index, partLen
-}
-
-// deserialize десериализует DOM-объект в тип данных Go
-func (t *Translator) deserialize(domObj models.DOMPart) any {
-	var result any
-
-	switch domObj.PartType {
-	case "string":
-		return domObj.Value
-
-	case "error":
-		return t.deserializeError(domObj)
-
-	case "map":
-		m := map[string]string{}
-		var key, value string
-
-		for _, v := range domObj.Content {
-			if key == "" {
-				key = string(v.Value)
-				continue
-			}
-			value = string(v.Value)
-			m[key] = value
-
-			key = ""
-			value = ""
-		}
-
-		return m
-
-	case "null":
-		return models.ErrNoValue
-
-	}
+	_, result := t.parsePart(idx)
 
 	return result
 }
 
-// deserializeError формирует тип error из объекта DOM
-func (t *Translator) deserializeError(domObj models.DOMPart) error {
-	s := string(domObj.Value)
-	strParts := strings.Fields(s)
+func (t *Translator) parsePart(idx int) (int, any) {
 
-	if strParts[1] == "Protocol" && strParts[2] == "error:" {
-		errString := strParts[3] + strParts[4] + strParts[5] + strParts[6]
-		err := errors.New(errString)
+	// определяем тип объекта
+	switch t.decodingData[idx] {
+	case '+': // Simple string 
+		return t.parseSimpleString(idx)
 
-		return errors.Join(models.ErrRedisProtocol, err)
+	case '$': // Bulk strings
+		return t.parseBulkString(idx)
+	
+	case '%': // Maps
+		return t.parseMap(idx)
+
+	case ':': // Integers
+		return t.parseInteger(idx)
+	
+	case '*': // Arrays
+		return t.parseArray(idx)
+
+	case '_': // Nil
+		// парсим nil
+
+	case '-': // Simple Errors
+		// парсим ошибку
+
+	default:
+		panic("unsupported RESP3 data type")
 	}
-	if strParts[1] == "Unknown" && strParts[2] == "value" && strParts[3] == "type:" {
-		strParts = strParts[4:]
-		var errString string
-		for _, v := range strParts {
-			errString = errString + v + " "
+
+	return idx, nil
+}
+
+func (t *Translator) parseSimpleString(idx int) (int, any) {
+	str := make([]byte, 0, 10)
+	idx++
+
+	for {
+		if t.isDataEnded(idx) {
+			return idx, nil
 		}
-		err := errors.New(errString)
+		
+		if t.decodingData[idx] == '\r' {
+			idx++
+			if t.isDataEnded(idx) {
+				return idx, nil
+			}
 
-		return errors.Join(models.ErrUnknownValueType, err)
+			if t.decodingData[idx] == '\n' {
+				break
+			}
+		}
+
+		str = append(str, t.decodingData[idx])
+		idx++
+	}
+	
+	return idx, str
+}
+
+func (t *Translator) parseBulkString(idx int) (int, any) {
+	var strLen int
+	idx++
+
+	if t.isDataEnded(idx) {
+		return idx, nil
+	}
+	idx, strLen = t.parsePartLen(idx)
+	str := make([]byte, 0, strLen)
+	idx++
+
+	for strLen > 0 {
+		if t.isDataEnded(idx) {
+			return idx, str
+		}
+		
+		if t.decodingData[idx] == '\r' {
+			idx++
+			if t.isDataEnded(idx) {
+				return idx, str
+			}
+
+			if t.decodingData[idx] == '\n' {
+				break
+			}
+		}
+
+		str = append(str, t.decodingData[idx])
+		idx++
 	}
 
-	return errors.New(s)
+	return idx, str
+}
+
+func (t *Translator) parseMap(idx int) (int, any) {
+	var mapLen int
+	idx++
+
+	if t.isDataEnded(idx) {
+		return idx, nil
+	}
+	idx, mapLen = t.parsePartLen(idx)
+
+	m := make(map[string]string, mapLen)
+	var key, value string
+
+	for mapLen > 0 {
+		idx++
+		if t.isDataEnded(idx) {
+			return idx, m
+		}
+
+		idx, key, value = t.parseMapKeyAndValue(idx)
+		m[key] = value
+
+		mapLen--
+	}
+
+	return idx, m
+}
+
+func (t *Translator) parseMapKeyAndValue(idx int) (int, string, string) {
+	var res any
+
+	idx, res = t.parsePart(idx)
+	key := res.(string)
+	idx++
+
+	idx, res = t.parsePart(idx)
+	value := res.(string)
+
+	return idx, key, value
+}
+
+func (t *Translator) parseInteger(idx int) (int, any) {
+	integer := make([]byte, 0, 3)
+	idx++
+
+	for {
+		if t.isDataEnded(idx) {
+			return idx, integer
+		}
+		
+		if t.decodingData[idx] == '\r' {
+			idx++
+			if t.isDataEnded(idx) {
+				return idx, integer
+			}
+
+			if t.decodingData[idx] == '\n' {
+				break
+			}
+		}
+
+		integer = append(integer, t.decodingData[idx])
+		idx++
+	}
+
+	return idx, integer
+}
+
+func (t *Translator) parseArray(idx int) (int, any) {
+	var arrLen int
+	var arrPart any
+	idx++
+
+	if t.isDataEnded(idx) {
+		return idx, nil
+	}
+
+	idx, arrLen = t.parsePartLen(idx)
+	arr := make([]any, 0, arrLen)
+
+	for arrLen > 0 {
+		idx++
+		if t.isDataEnded(idx) {
+			return idx, arr
+		}
+
+		idx, arrPart = t.parsePart(idx)
+		arr = append(arr, arrPart)
+		arrLen--
+	}
+
+	return idx, arr
+}
+
+func (t *Translator) parsePartLen(idx int) (int, int) {
+	valueLenBytes := make([]byte, 0, 5)
+	idx++
+	
+	for {
+		if t.isDataEnded(idx) {
+			return idx, 0
+		}
+		
+		if t.decodingData[idx] == '\r' {
+			idx++
+			if t.isDataEnded(idx) {
+				return idx, 0
+			}
+
+			if t.decodingData[idx] == '\n' {
+				break
+			}
+		}
+
+		valueLenBytes = append(valueLenBytes, t.decodingData[idx])
+		idx++
+	}
+	lenString := string(valueLenBytes)
+	lenResult, _ := strconv.Atoi(lenString)
+
+	return idx, lenResult
 }
