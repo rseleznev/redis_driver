@@ -377,6 +377,12 @@ func (c *Connection) receive(ctx context.Context) error {
 					continue
 				} else {
 					// не можем увеличить буфер
+					// закрываем соединение и создаем новое
+					err = c.reconnect()
+					if err != nil {
+						return err
+					}
+
 					return models.ErrRecvMsgTooBig
 				}
 
