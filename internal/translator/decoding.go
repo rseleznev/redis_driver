@@ -208,7 +208,6 @@ func (t *Translator) parseArray(idx int) (int, any) {
 
 func (t *Translator) parsePartLen(idx int) (int, int) {
 	valueLenBytes := make([]byte, 0, 5)
-	idx++
 	
 	for {
 		if t.isDataEnded(idx) {
