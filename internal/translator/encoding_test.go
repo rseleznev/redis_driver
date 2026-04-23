@@ -2,13 +2,14 @@ package translator
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
 var (
-	testEncoder = Translator{}
+	testEncoder = &Translator{}
 	longValueRes = []byte{
 		'*', '1', '\r', '\n',
 		'$', '3', '6', '4', '\r', '\n', 
@@ -44,28 +45,50 @@ func TestEncode(t *testing.T) {
 	}{
 		{
 			name: "success strings",
-			buf: &models.SendBuf{},
+			buf: &models.SendBuf{
+				WritePos: 0,
+				Buf: make([]byte, 200),
+			},
 			params: []any{"GET", "1"},
 			expectedErr: nil,
 			expectedResult: []byte{'*', '2', '\r', '\n', '$', '3', '\r', '\n', 'G', 'E', 'T', '\r', '\n', '$', '1', '\r', '\n', '1', '\r', '\n'},
 		},
 		{
 			name: "success bytes",
-			buf: &models.SendBuf{},
+			buf: &models.SendBuf{
+				WritePos: 0,
+				Buf: make([]byte, 200),
+			},
 			params: []any{[]byte{'S', 'E', 'T'}},
 			expectedErr: nil,
 			expectedResult: []byte{'*', '1', '\r', '\n', '$', '3', '\r', '\n', 'S', 'E', 'T', '\r', '\n'},
 		},
 		{
 			name: "success long value",
-			buf: &models.SendBuf{},
+			buf: &models.SendBuf{
+				WritePos: 0,
+				Buf: make([]byte, 2000),
+			},
 			params: []any{longValue},
 			expectedErr: nil,
 			expectedResult: longValueRes,
 		},
 		{
-			name: "fail build",
-			buf: &models.SendBuf{},
+			name: "fail ErrSendBufTooShort",
+			buf: &models.SendBuf{
+				WritePos: 0,
+				Buf: make([]byte, 2),
+			},
+			params: []any{},
+			expectedErr: models.ErrSendBufTooShort,
+			expectedResult: []byte{},
+		},
+		{
+			name: "fail ErrUnsupportedDataType",
+			buf: &models.SendBuf{
+				WritePos: 0,
+				Buf: make([]byte, 200),
+			},
 			params: []any{map[string]string{
 				"name": "test",
 			}},
@@ -79,6 +102,9 @@ func TestEncode(t *testing.T) {
 			err := testEncoder.Encode(tt.buf, tt.params)
 			if err != tt.expectedErr {
 				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
+			}
+			if slices.Compare(tt.buf.Buf[:tt.buf.WritePos], tt.expectedResult) != 0 {
+				t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, tt.buf.Buf[:tt.buf.WritePos])
 			}
 		})
 	}

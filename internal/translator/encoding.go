@@ -17,6 +17,7 @@ func (t *Translator) Encode(buf *models.SendBuf, params []any) error {
 	for _, v := range params {
 		err = t.writeString(v)
 		if err != nil {
+			t.resetWritePos()
 			return err
 		}
 	}
@@ -30,7 +31,7 @@ func (t *Translator) writeArr(paramsLen int) error {
 	
 	arrLen := 1 + len(paramsLenBytes) + 2
 
-	if arrLen <= t.sendBufLen() {
+	if arrLen >= t.sendBufLen() {
 		return models.ErrSendBufTooShort
 	}
 
@@ -47,15 +48,25 @@ func (t *Translator) writeArr(paramsLen int) error {
 }
 
 func (t *Translator) writeString(cmdPart any) error {
-	valueBytes, ok := cmdPart.([]byte)
-	if !ok {
+	var valueBytes []byte
+	
+	switch cmdPart := cmdPart.(type) {
+	case string:
+		valueBytes = []byte(cmdPart)
+
+	case []byte:
+		valueBytes = cmdPart
+
+	default:
 		return models.ErrUnsupportedDataType
+
 	}
+
 	valueLenStr := strconv.Itoa(len(valueBytes))
 	valueLenBytes := []byte(valueLenStr)
 	valueLen := 1 + len(valueLenBytes) + len(valueBytes) + 4
 
-	if valueLen <= t.sendBufLen() {
+	if valueLen > t.sendBufLen() {
 		return models.ErrSendBufTooShort
 	}
 
@@ -81,4 +92,8 @@ func (t *Translator) writeString(cmdPart any) error {
 func (t *Translator) writeByte(b byte) {
 	t.sendBuf.Buf[t.sendBuf.WritePos] = b
 	t.sendBuf.WritePos++
+}
+
+func (t *Translator) resetWritePos() {
+	t.sendBuf.WritePos = 0
 }
