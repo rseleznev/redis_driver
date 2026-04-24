@@ -1,6 +1,7 @@
 package translator
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/rseleznev/redis_driver/internal/models"
@@ -49,7 +50,8 @@ func (t *Translator) parsePart(idx int) (int, any) {
 		return 0, nil 
 
 	case '-': // Simple Errors
-		// парсим ошибку
+		err := t.parseError(idx)
+		t.setDecodingErr(err)
 
 	default:
 		t.setDecodingErr(models.ErrUnsupportedDataType)
@@ -261,4 +263,23 @@ func (t *Translator) parsePartLen(idx int) (int, int) {
 	lenResult, _ := strconv.Atoi(lenString)
 
 	return idx, lenResult
+}
+
+func (t *Translator) parseError(idx int) error {
+	idx++
+	errValue := make([]byte, 0, 50)
+
+	for {
+		if t.decodingData[idx] == '\r' {
+			idx++
+
+			if t.decodingData[idx] == '\n' {
+				break
+			}
+		}
+
+		errValue = append(errValue, t.decodingData[idx])
+		idx++
+	}
+	return fmt.Errorf("%s: %w", errValue, models.ErrRedisException)
 }

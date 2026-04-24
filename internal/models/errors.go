@@ -44,8 +44,9 @@ var (
 	ErrNoMemory = errors.New("redis_driver: not enought memory for requested operation") // ENOMEM
 	ErrSpaceAddress = errors.New("redis_driver: an invalid user space address") // EFAULT
 	ErrBadValue = errors.New("redis_driver: invalid argument passed") // EINVAL
-	ErrRedisProtocol = errors.New("redis_driver: redis protocol error")
+	// ErrRedisProtocol = errors.New("redis_driver: redis protocol error")
 	ErrDataAssert = errors.New("redis_driver: data assertion error")
+	ErrRedisException = errors.New("redis_driver: redis server exception")
 
 	// sending
 	ErrSendMsgTrunc = errors.New("redis_driver: sended message truncated")
@@ -57,6 +58,6 @@ var (
 	ErrRecvMsgTrunc = errors.New("redis_driver: received message truncated")
 	ErrRecvMsgCTrunc = errors.New("redis_driver: received oob-message truncated")
 	ErrNoValue = errors.New("redis_driver: no value for given key")
-	ErrUnknownValueType = errors.New("redis_driver: got unknown value type from server")
+	// ErrUnknownValueType = errors.New("redis_driver: got unknown value type from server")
 	ErrRecvMsgTooBig = errors.New("redis_driver: receiving buffer reached its max len but message is bigger")
 )

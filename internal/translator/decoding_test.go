@@ -1,10 +1,13 @@
 package translator
 
 import (
+	"errors"
 	"maps"
 	"os"
 	"slices"
 	"testing"
+
+	"github.com/rseleznev/redis_driver/internal/models"
 )
 
 var (
@@ -298,6 +301,35 @@ func Test_parseArray(t *testing.T) {
 
 			if slices.Compare(resArr, tt.expectedResult) != 0 {
 				t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, resArr)
+			}
+		})
+	}
+}
+
+func Test_parseError(t *testing.T) {
+	testData := []struct{
+		name string
+		data []byte
+		expectedErr error
+	}{
+		{
+			name: "success",
+			data: []byte{
+				'-', 'E', 'R', 'R', ' ', 'u', 'n', 'k', 'n', 'o', 'w', 'n', ' ',
+				'c', 'o', 'm', 'm', 'a', 'n', 'd', ' ', '"', 'a', 's', 'd', 'f', '"', '\r', '\n',
+			},
+			expectedErr: models.ErrRedisException,
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testDecoder.setDecodingData(tt.data)
+
+			err := testDecoder.parseError(0)
+
+			if !errors.Is(err, tt.expectedErr) {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
 			}
 		})
 	}
