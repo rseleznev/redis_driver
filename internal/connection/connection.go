@@ -28,7 +28,7 @@ type socketer interface {
 
 type coder interface {
 	Encode(*models.SendBuf, []any) error
-	Decode([]byte) any
+	Decode([]byte) (any, error)
 }
 
 type messenger interface {
@@ -262,7 +262,10 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 
 	// декодируем
 	var result any
-	result = c.coder.Decode(c.getRecvBufWithWritePos())
+	result, err = c.coder.Decode(c.getRecvBufWithWritePos())
+	if err != nil {
+		return nil, err
+	}
 
 	// очищаем буферы?
 

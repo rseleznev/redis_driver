@@ -6,6 +6,7 @@ type Translator struct {
 	sendBuf *models.SendBuf
 
 	decodingData []byte
+	decodingErr error
 }
 
 func NewTranslator() *Translator {
@@ -30,4 +31,19 @@ func (t *Translator) decodingDataLen() int {
 
 func (t *Translator) isDataEnded(idx int) bool {
 	return idx >= t.decodingDataLen()
+}
+
+func (t *Translator) setDecodingErr(err error) {
+	t.decodingErr = err
+}
+
+func (t *Translator) getDecodingErr() error {
+	err := t.getDecodingErr()
+	t.clearDecodingErr()
+
+	return err
+}
+
+func (t *Translator) clearDecodingErr() {
+	t.decodingErr = nil
 }

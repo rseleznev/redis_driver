@@ -6,7 +6,7 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
-func (t *Translator) Decode(input []byte) any {
+func (t *Translator) Decode(input []byte) (any, error) {
 	// закидываем срез в структуру
 	t.setDecodingData(input)
 
@@ -14,7 +14,12 @@ func (t *Translator) Decode(input []byte) any {
 
 	_, result := t.parsePart(idx)
 
-	return result
+	err := t.getDecodingErr()
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // parsePart парсит "объект", в случае команд PING, SET и GET это будут одиночные строки
@@ -46,7 +51,7 @@ func (t *Translator) parsePart(idx int) (int, any) {
 		// парсим ошибку
 
 	default:
-		panic("unsupported RESP3 data type")
+		t.setDecodingErr(models.ErrUnsupportedDataType)
 	}
 
 	return idx, nil
@@ -152,7 +157,7 @@ func (t *Translator) parseMapKeyAndValue(idx int) (int, string, string) {
 		key = string(res)
 
 	default:
-		panic("type conversion error")
+		t.setDecodingErr(models.ErrDataAssert)
 
 	}
 	idx++
