@@ -90,7 +90,7 @@ func (t *Translator) parseBulkString(idx int) (int, any) {
 	str := make([]byte, 0, strLen)
 	idx++
 
-	for strLen > 0 {
+	for {
 		if t.isDataEnded(idx) {
 			return idx, str
 		}
@@ -141,14 +141,37 @@ func (t *Translator) parseMap(idx int) (int, any) {
 }
 
 func (t *Translator) parseMapKeyAndValue(idx int) (int, string, string) {
-	var res any
+	var r any
+	var key, value string
 
-	idx, res = t.parsePart(idx)
-	key := res.(string)
+	// ключ
+	idx, r = t.parsePart(idx)
+
+	switch res := r.(type) {
+	case []byte:
+		key = string(res)
+
+	default:
+		panic("type conversion error")
+
+	}
 	idx++
 
-	idx, res = t.parsePart(idx)
-	value := res.(string)
+	// значение
+	idx, r = t.parsePart(idx)
+
+	switch res := r.(type) {
+	case []byte:
+		value = string(res)
+
+	case []any:
+		if len(res) == 0 {
+			value = ""
+		} else {
+			value = "arr with len > 0" // временная заплатка
+		}
+
+	}
 
 	return idx, key, value
 }

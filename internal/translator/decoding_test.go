@@ -1,6 +1,7 @@
 package translator
 
 import (
+	"maps"
 	"slices"
 	"testing"
 )
@@ -8,6 +9,84 @@ import (
 var (
 	testDecoder = &Translator{}
 )
+
+func Test_parseMap(t *testing.T) {
+	testData := []struct{
+		name string
+		data []byte
+		expectedResult map[string]string
+	}{
+		{
+			name: "success 1",
+			data: []byte{
+				'%', '2', '\r', '\n',
+				'+', 'f', 'i', 'r', 's', 't', '\r', '\n',
+				':', '1', '\r', '\n',
+				'+', 's', 'e', 'c', 'o', 'n', 'd', '\r', '\n',
+				':', '2', '\r', '\n'},
+			expectedResult: map[string]string{
+				"first": "1",
+				"second": "2",
+			},
+		},
+		{
+			name: "success 2",
+			data: []byte{
+				'%', '3', '\r', '\n',
+				'+', 'f', 'i', 'r', 's', 't', '\r', '\n',
+				':', '1', '\r', '\n',
+				'+', 's', 'e', 'c', 'o', 'n', 'd', '\r', '\n',
+				':', '2', '\r', '\n',
+				'$', '3', '\r', '\n',
+				'G', 'E', 'T', '\r', '\n',
+				'$', '2', '\r', '\n',
+				'O', 'K', '\r', '\n',},
+			expectedResult: map[string]string{
+				"first": "1",
+				"second": "2",
+				"GET": "OK",
+			},
+		},
+		{
+			name: "success 3 with arr",
+			data: []byte{
+				'%', '2', '\r', '\n',
+				'$', '5', '\r', '\n',
+				'f', 'i', 'r', 's', 't', '\r', '\n',
+				':', '1', '\r', '\n',
+				'$', '5', '\r', '\n',
+				'M', 'o', 'd', 'e', 's', '\r', '\n',
+				'*', '0', '\r', '\n',},
+			expectedResult: map[string]string{
+				"first": "1",
+				"Modes": "",
+			},
+		},
+		{
+			name: "success 4 zero len map",
+			data: []byte{
+				'%', '0', '\r', '\n'},
+			expectedResult: map[string]string{},
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testDecoder.setDecodingData(tt.data)
+
+			_, m := testDecoder.parseMap(0)
+
+			res, ok := m.(map[string]string)
+			if !ok {
+				t.Error("Ошибка приведения типа к map[string]string")
+			}
+
+			if !maps.Equal(res, tt.expectedResult) {
+				t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, res)
+			}
+		})
+	}
+}
 
 func Test_parseInteger(t *testing.T) {
 	testData := []struct{
