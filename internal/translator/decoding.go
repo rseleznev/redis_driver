@@ -44,8 +44,9 @@ func (t *Translator) parsePart(idx int) (int, any) {
 		return t.parseArray(idx)
 
 	case '_': // Nil
-		idx += 2	
-		return idx, models.ErrNoValue
+		idx += 2
+		t.setDecodingErr(models.ErrNoValue)	
+		return 0, nil 
 
 	case '-': // Simple Errors
 		// парсим ошибку

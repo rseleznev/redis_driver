@@ -9,7 +9,84 @@ import (
 
 var (
 	testDecoder = &Translator{}
+	encodedRESPLongString = []byte{
+		'$', '3', '6', '4', '\r', '\n', 
+		'{', '"', 's', 't', 'o', 'r', 'e', 's', 'C', 'o', 'u', 'n', 't', 'e', 'd',
+		'"', ':', '"', '8', '"', ',', '"', 'f', 'i', 'l', 't', 'e', 'r', 'e', 'd', 'R', 'e', 'g', 'i', 'o', 'n',
+		'C', 'o', 'd', 'e', 's', '"', ':', 'n', 'u', 'l', 'l', ',', '"', 's', 't', 'o', 'r', 'e', 's', '"', ':', '[',
+		'{', '"', 's', 't', 'o', 'r', 'e', 'I', 'd', '"', ':', '"', '2', '4', '5', '4', '"', ',', '"', 'r', 'e', 'g',
+		'i', 'o', 'n', 'C', 'o', 'd', 'e', '"', ':', '"', 'M', 'S', 'K', '"', '}', ',', '{', '"', 's', 't', 'o', 'r',
+		'e', 'I', 'd', '"', ':', '"', '3', '8', '7', '5', '"', ',', '"', 'r', 'e', 'g', 'i', 'o', 'n', 'C', 'o', 'd',
+		'e', '"', ':', '"', 'R', 'Z', 'N', '"', '}', ',', '{', '"', 's', 't', 'o', 'r', 'e', 'I', 'd', '"', ':', '"',
+		'B', '0', '5', '6', '"', ',', '"', 'r', 'e', 'g', 'i', 'o', 'n', 'C', 'o', 'd', 'e', '"', ':', '"', 'M', 'S', 'K',
+		'"', '}', ',', '{', '"', 's', 't', 'o', 'r', 'e', 'I', 'd', '"', ':', '"', 'D', '5', '0', '0', '"', ',', '"', 'r',
+		'e', 'g', 'i', 'o', 'n', 'C', 'o', 'd', 'e', '"', ':', '"', 'M', 'S', 'K', '"', '}', ',', '{', '"', 's', 't', 'o',
+		'r', 'e', 'I', 'd', '"', ':', '"', 'L', '5', '0', '0', '"', ',', '"', 'r', 'e', 'g', 'i', 'o', 'n', 'C', 'o',
+		'd', 'e', '"', ':', '"', 'T', 'V', 'R', '"', '}', ',', '{', '"', 's', 't', 'o', 'r', 'e', 'I', 'd', '"', ':', '"',
+		'L', '7', '0', '0', '"', ',', '"', 'r', 'e', 'g', 'i', 'o', 'n', 'C', 'o', 'd', 'e', '"', ':', '"', 'T', 'V', 'R',
+		'"', '}', ',', '{', '"', 's', 't', 'o', 'r', 'e', 'I', 'd', '"', ':', '"', 'R', '2', '0', '0', '"', ',', '"', 'r',
+		'e', 'g', 'i', 'o', 'n', 'C', 'o', 'd', 'e', '"', ':', '"', 'S', 'H', 'L', '"', '}', ',', '{', '"', 's', 't', 'o',
+		'r', 'e', 'I', 'd', '"', ':', '"', 'R', '3', '2', '3', '2', '"', ',', '"', 'r', 'e', 'g', 'i', 'o', 'n', 'C',
+		'o', 'd', 'e', '"', ':', '"', 'Y', 'A', 'K', '"', '}', ']', '}', '\r', '\n', 
+	}
+	encodedRESPSimpleMap = []byte{
+		'%', '2', '\r', '\n',
+		'+', 'f', 'i', 'r', 's', 't', '\r', '\n',
+		':', '1', '\r', '\n',
+		'+', 's', 'e', 'c', 'o', 'n', 'd', '\r', '\n',
+		':', '2', '\r', '\n',
+	}
 )
+
+func TestDecode(t *testing.T) {
+	longString, _ := os.ReadFile("/home/rseleznev/response.json")
+	
+	testData := []struct{
+		name string
+		data []byte
+		expectedBytesResult []byte
+		expectedMapResult map[string]string
+		expectedErr error
+	}{
+		{
+			name: "success long string",
+			data: encodedRESPLongString,
+			expectedBytesResult: longString,
+			expectedErr: nil,
+		},
+		{
+			name: "success simple map",
+			data: encodedRESPSimpleMap,
+			expectedMapResult: map[string]string{
+				"first": "1",
+				"second": "2",
+			},
+			expectedErr: nil,
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := testDecoder.Decode(tt.data)
+			if err != tt.expectedErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
+			}
+			
+			switch res := r.(type) {
+			case []byte:
+				if slices.Compare(res, tt.expectedBytesResult) != 0 {
+					t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedBytesResult, res)
+				}
+
+			case map[string]string:
+				if !maps.Equal(res, tt.expectedMapResult) {
+					t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedMapResult, res)
+				}
+
+			}
+		})
+	}
+}
 
 func Test_parseBulkString(t *testing.T) {
 	testData := []struct{
@@ -194,7 +271,7 @@ func Test_parseArray(t *testing.T) {
 		},
 		{
 			name: "success long string",
-			data: longValueRes, // из файла encoding_test.go
+			data: encodedArrWithLongString, // из файла encoding_test.go
 			expectedResult: longValue,
 		},
 	}

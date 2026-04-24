@@ -38,7 +38,7 @@ func (t *Translator) setDecodingErr(err error) {
 }
 
 func (t *Translator) getDecodingErr() error {
-	err := t.getDecodingErr()
+	err := t.decodingErr
 	t.clearDecodingErr()
 
 	return err

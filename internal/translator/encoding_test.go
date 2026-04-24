@@ -10,7 +10,7 @@ import (
 
 var (
 	testEncoder = &Translator{}
-	longValueRes = []byte{
+	encodedArrWithLongString = []byte{
 		'*', '1', '\r', '\n',
 		'$', '3', '6', '4', '\r', '\n', 
 		'{', '"', 's', 't', 'o', 'r', 'e', 's', 'C', 'o', 'u', 'n', 't', 'e', 'd',
@@ -34,7 +34,7 @@ var (
 )
 
 func TestEncode(t *testing.T) {
-	longValue, _ := os.ReadFile("/home/rseleznev/response.json")
+	longString, _ := os.ReadFile("/home/rseleznev/response.json")
 	
 	testData := []struct{
 		name string
@@ -69,9 +69,9 @@ func TestEncode(t *testing.T) {
 				WritePos: 0,
 				Buf: make([]byte, 2000),
 			},
-			params: []any{longValue},
+			params: []any{longString},
 			expectedErr: nil,
-			expectedResult: longValueRes,
+			expectedResult: encodedArrWithLongString,
 		},
 		{
 			name: "fail ErrSendBufTooShort",
