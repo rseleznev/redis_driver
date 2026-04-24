@@ -34,7 +34,7 @@ var (
 )
 
 func TestEncode(t *testing.T) {
-	longString, _ := os.ReadFile("/home/rseleznev/response.json")
+	longString, _ := os.ReadFile("./../../docs/testing/response.json")
 	
 	testData := []struct{
 		name string

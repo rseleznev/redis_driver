@@ -39,7 +39,7 @@ var (
 )
 
 func TestDecode(t *testing.T) {
-	longString, _ := os.ReadFile("/home/rseleznev/response.json")
+	longString, _ := os.ReadFile("./../../docs/testing/response.json")
 	
 	testData := []struct{
 		name string
@@ -252,7 +252,7 @@ func Test_parseInteger(t *testing.T) {
 }
 
 func Test_parseArray(t *testing.T) {
-	longValue, _ := os.ReadFile("/home/rseleznev/response.json")
+	longValue, _ := os.ReadFile("./../../docs/testing/response.json")
 	
 	testData := []struct{
 		name string
