@@ -2,6 +2,7 @@ package translator
 
 import (
 	"maps"
+	"os"
 	"slices"
 	"testing"
 )
@@ -9,6 +10,41 @@ import (
 var (
 	testDecoder = &Translator{}
 )
+
+func Test_parseBulkString(t *testing.T) {
+	testData := []struct{
+		name string
+		data []byte
+		expectedResult []byte
+	}{
+		{
+			name: "success 1",
+			data: []byte{'$', '2', '\r', '\n', 'O', 'K', '\r', '\n',},
+			expectedResult: []byte("OK"),
+		},
+		{
+			name: "success 2",
+			data: []byte{'$', '5', '\r', '\n', 'O', 'K', ' ', 'K', 'O', '\r', '\n',},
+			expectedResult: []byte("OK KO"),
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testDecoder.setDecodingData(tt.data)
+
+			_, res := testDecoder.parseBulkString(0)
+			resBytes, ok := res.([]byte)
+			if !ok {
+				t.Error("Ошибка приведения типа к []byte")
+			}
+
+			if slices.Compare(resBytes, tt.expectedResult) != 0 {
+				t.Errorf("Ожидаемый результат %s, получено %s", tt.expectedResult, res)
+			}
+		})
+	}
+}
 
 func Test_parseMap(t *testing.T) {
 	testData := []struct{
@@ -139,6 +175,8 @@ func Test_parseInteger(t *testing.T) {
 }
 
 func Test_parseArray(t *testing.T) {
+	longValue, _ := os.ReadFile("/home/rseleznev/response.json")
+	
 	testData := []struct{
 		name string
 		data []byte
@@ -153,6 +191,11 @@ func Test_parseArray(t *testing.T) {
 			name: "success simple string",
 			data: []byte{'*', '1', '\r', '\n', '+', 'O', 'K', '\r', '\n'},
 			expectedResult: []byte("OK"),
+		},
+		{
+			name: "success long string",
+			data: longValueRes, // из файла encoding_test.go
+			expectedResult: longValue,
 		},
 	}
 
