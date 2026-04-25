@@ -4,7 +4,7 @@ import "github.com/rseleznev/redis_driver/internal/models"
 
 // initOptions инициализирует параметры соединения
 func initOptions(opts *models.Options) {
-	if opts.RetryAmount == 0 {
+	if opts.RetryAmount <= 0 {
 		opts.RetryAmount = 3
 	}
 
