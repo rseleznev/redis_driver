@@ -49,15 +49,16 @@ func NewSocket(opts *models.Options) (Socket, error) {
 		return 0, fmt.Errorf("socket creation err: %w", err)
 	}
 
-	// Включаем keep alive
-	syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
+	if opts.SetKeepAlive {
+		// Включаем keep alive
+		syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
 
-	// Настраиваем проверку keep alive
-	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPIDLE, 300) // через 5 минут без активности...
-	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, 60) // отправляется тестовый пакет, ждем 60 секунд...
-	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPCNT, 5) // после 5 неудачных попыток соединение закрывается
-
-	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1) // отключаем задержки
+		// Настраиваем проверку keep alive
+		syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPIDLE, opts.KeepAliveIdle) // через 5 минут (300) без активности...
+		syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPINTVL, opts.KeepAliveInterval) // отправляется тестовый пакет, ждем 60 секунд...
+		syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_KEEPCNT, opts.KeepAliveCheckAmount) // после 5 неудачных попыток соединение закрывается
+	}
+	syscall.SetsockoptInt(socketFd, syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1) // включаем немедленную отправку	
 
 	// Настройки TCP-буферов ядра
 	// надо покрыть тестами!
@@ -73,7 +74,6 @@ func NewSocket(opts *models.Options) (Socket, error) {
 			return 0, err
 		}
 	}
-	
 
 	return Socket(socketFd), nil
 }
