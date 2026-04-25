@@ -91,10 +91,10 @@ func NewConnector(opts *models.Options) (Connector, error) {
 		socket: s,
 
 		sendBuf: &models.SendBuf{
-			Buf: make([]byte, 0, opts.SendBufMinLen),
+			Buf: make([]byte, opts.SendBufMinLen),
 		},
 		recvBuf: &models.RecvBuf{
-			Buf: make([]byte, 0, opts.ReceiveBufMinLen),
+			Buf: make([]byte, opts.ReceiveBufMinLen),
 		},
 	}
 
