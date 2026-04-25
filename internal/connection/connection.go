@@ -530,7 +530,11 @@ func (c *Connection) recvBufLen() int {
 }
 
 func (c *Connection) getRecvBufWithWritePos() []byte {
-	return c.recvBuf.Buf[:c.recvBuf.WritePos]
+	return c.recvBuf.Buf[:c.getRecvBufWritePos()]
+}
+
+func (c *Connection) getRecvBufWritePos() int {
+	return c.recvBuf.WritePos
 }
 
 

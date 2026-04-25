@@ -119,8 +119,82 @@ func (t *Transmitter) Send(data []byte) (int, error) {
 	return n, nil
 }
 
-func (t *Transmitter) Receive(data *models.RecvBuf) error {
+func (t *Transmitter) Receive(buf *models.RecvBuf) error {
+	// Читаем ответ
+	n, _, coreFlags, _, err := syscall.Recvmsg(t.SocketFd, buf.Buf, nil, 0)
+	if err != nil {
+		// EAGAIN or EWOULDBLOCK
+		// 		The  socket  is marked nonblocking and the receive operation would block, or a receive timeout had been
+		// 		set and the timeout expired before data was received.  POSIX.1 allows either error to be  returned  for
+		// 		this  case,  and  does  not  require  these constants to have the same value, so a portable application
+		// 		should check for both possibilities.
+		// игнорируем и обрабатываем выше по стеку
+
+		// EBADF  The argument sockfd is an invalid file descriptor.
+		if errors.Is(err, syscall.EBADF) {
+			return models.ErrSocketBadFD
+		}
+
+		// ECONNREFUSED
+		// 		A remote host refused to allow the network connection (typically because it  is  not  running  the  re‐
+		// 		quested service).
+		if errors.Is(err, syscall.ECONNREFUSED) {
+			return models.ErrConnectionRefused
+		}
+
+		// EFAULT The receive buffer pointer(s) point outside the process's address space.
+		if errors.Is(err, syscall.EFAULT) {
+			return models.ErrSpaceAddress
+		}
+
+		// EINTR  The receive was interrupted by delivery of a signal before any data was available; see signal(7).
+		if errors.Is(err, syscall.EINTR) {
+			return models.ErrSignalInterruption
+		}
+
+		// EINVAL Invalid argument passed.
+		if errors.Is(err, syscall.EINVAL) {
+			return models.ErrBadValue
+		}
+
+		// ENOMEM Could not allocate memory for recvmsg().
+		if errors.Is(err, syscall.ENOMEM) {
+			return models.ErrNoMemory
+		}
+
+		// ENOTCONN
+		// 		The socket is associated with a connection-oriented protocol and has not been connected (see connect(2)
+		// 		and accept(2)).
+		if errors.Is(err, syscall.ENOTCONN) {
+			return models.ErrNotConnected
+		}
+
+		// ENOTSOCK The file descriptor sockfd does not refer to a socket
+		if errors.Is(err, syscall.ENOTSOCK) {
+			return models.ErrSocketBadFD
+		}
+		
+		return fmt.Errorf("receiving err: %w", err)
+	}
+
+	// Проверяем флаги ядра
+	// Проверка, все ли данные влезли в буфер получения
+	if coreFlags & syscall.MSG_TRUNC != 0 {
+		return models.ErrRecvMsgTrunc
+	}
+	// Доп проверка, не должна срабатывать
+	if coreFlags & syscall.MSG_CTRUNC != 0 {
+		return models.ErrRecvMsgCTrunc
+	}
 	
+	// Соединение закрыто сервером
+	if n == 0 {
+		return models.ErrConnectionClosed
+	}
+
+	// Указываем позицию окончания данных
+	buf.WritePos = n
+
 	return nil
 }
 
