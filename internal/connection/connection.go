@@ -143,7 +143,6 @@ func (c *Connection) connect() error {
 		break
 	}
 	
-	
 	return nil
 }
 
@@ -198,7 +197,6 @@ func (c *Connection) poll(eventType string) error {
 		return models.ErrPollTimeout
 
 	}
-	
 
 	return nil
 }

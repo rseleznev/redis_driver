@@ -55,6 +55,7 @@ type Options struct {
 	ReceiveBufAvgLen int
 
 	// Таймаут поллинга
+	// По умолчанию 1 сек
 	// При наступлении возвращается ошибка ErrPollTimeout
 	PollingTimeout time.Duration
 }
