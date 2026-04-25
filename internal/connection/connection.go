@@ -474,11 +474,15 @@ func (c *Connection) reconnect() error {
 }
 
 func (c *Connection) getSendBuf() []byte {
-	return c.sendBuf.Buf
+	return c.sendBuf.Buf[:c.getSendBufWritePos()]
 }
 
 func (c *Connection) getSendBufWithoutSentBytes() []byte {
-	return c.sendBuf.Buf[c.getSentBytes():]
+	return c.sendBuf.Buf[c.getSentBytes():c.getSendBufWritePos()]
+}
+
+func (c *Connection) getSendBufWritePos() int {
+	return c.sendBuf.WritePos
 }
 
 func (c *Connection) getSentBytes() int {
