@@ -66,6 +66,16 @@ func TestDecode(t *testing.T) {
 			},
 			expectedErr: nil,
 		},
+		{
+			name: "success null",
+			data: []byte{'_', '\r', '\n'},
+			expectedErr: models.ErrNoValue,
+		},
+		{
+			name: "fail ErrUnsupportedDataType",
+			data: []byte{'!', 'T', 'E', 'S', 'T', '\r', '\n'},
+			expectedErr: models.ErrUnsupportedDataType,
+		},
 	}
 
 	for _, tt := range testData {
