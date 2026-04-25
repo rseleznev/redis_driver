@@ -294,8 +294,13 @@ func (c *Connection) send(ctx context.Context) error {
 	
 	var sentBytes int
 	var err error
+	retriesAvailable := c.opts.RetryAmount
 
 	for ctx.Err() == nil {
+		if retriesAvailable == 0 {
+			return models.ErrConnectionRetriesFailed
+		}
+		
 		if c.getSentBytes() == 0 {
 			sentBytes, err = c.msgr.Send(c.getSendBuf())
 		} else {
@@ -309,7 +314,9 @@ func (c *Connection) send(ctx context.Context) error {
 				if err != nil {
 					// таймаут поллинга истек
 					if err == models.ErrPollTimeout {
-						continue // убавлять счетчик ретраев
+						retriesAvailable--
+
+						continue
 					}
 					// соединение закрыто сервером
 					if err == models.ErrConnectionReset || err == models.ErrConnectionClosed {
