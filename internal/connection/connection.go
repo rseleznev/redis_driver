@@ -104,20 +104,37 @@ func NewConnector(opts *models.Options) (Connector, error) {
 
 // connect выполняет подключение к серверу
 func (c *Connection) connect() error {
-	err := c.socket.Connect(c.opts)
-	if err != nil {
-		// сокет в неблокирующем режиме и нужно поллить
-		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
-			err = c.poll("connect")
-			if err != nil {
-				return err
+	retriesAvailable := c.opts.RetryAmount
+	
+	for {
+		if retriesAvailable == 0 {
+			return models.ErrConnectionRetriesFailed
+		}
+		
+		err := c.socket.Connect(c.opts)
+		if err != nil {
+			// сокет в неблокирующем режиме и нужно поллить
+			if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINPROGRESS) {
+				err = c.poll("connect")
+				if err != nil {
+					if err == models.ErrPollTimeout {
+						retriesAvailable--
+
+						continue
+					}
+					
+					return err
+				}
+
+				return nil
 			}
 
-			return nil
+			return err
 		}
 
-		return err
+		break
 	}
+	
 	
 	return nil
 }
