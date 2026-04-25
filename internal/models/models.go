@@ -45,21 +45,6 @@ type Options struct {
 	PollingTimeout time.Duration
 }
 
-type DOMPart struct {
-	PartType string // тип элемента
-
-	ValueLenBytes []byte // длина значения в виде нескольких байт (на случай частичного декодирования)
-	ValueLen int // длина значения в байтах в виде одного числа (для простых типов)
-	Value []byte // значение (для простых типов)
-
-	ContentLenBytes []byte // длина контента в виде нескольких байт (на случай частичного декодирования)
-	ContentLen int // кол-во элементов внутри одним числом (для составных типов)
-	Content []DOMPart // дочерние элементы (для составных типов)
-	
-	TotalBytesLen int // кол-во байтов (для расчета емкости итогового среза) можно удалить
-}
-
-// Подумать над синхронизацией
 type PollingUnit struct {
 	SocketFd int
 	EventType string // connect, income, outcome
