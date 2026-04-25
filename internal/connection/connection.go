@@ -376,8 +376,13 @@ func (c *Connection) send(ctx context.Context) error {
 
 // receive выполняет получение сообщения
 func (c *Connection) receive(ctx context.Context) error {
-	
+	retriesAvailable := c.opts.RetryAmount
+
 	for ctx.Err() == nil {
+		if retriesAvailable == 0 {
+			return models.ErrConnectionRetriesFailed
+		}
+		
 		err := c.msgr.Receive(c.recvBuf) // передаем структуру, чтобы обработчик указал позицию окончания записи
 		if err != nil {
 			// нет данных в буфере получения, нужно ждать
@@ -386,7 +391,9 @@ func (c *Connection) receive(ctx context.Context) error {
 				if err != nil {
 					// таймаут поллинга истек
 					if err == models.ErrPollTimeout {
-						continue // убавлять счетчик ретраев
+						retriesAvailable--
+						
+						continue
 					}
 					
 					return err
