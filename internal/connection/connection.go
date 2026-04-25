@@ -9,11 +9,14 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
+// Connector является интерфейсом для внешнего использования
 type Connector interface {
 	Process(context.Context, []any) (any, error)
 	Close()
 }
 
+// ------------------------------------------------
+// внутренние интерфейсы
 
 type poller interface {
 	Add(models.PollingUnit) error
@@ -39,6 +42,10 @@ type messenger interface {
 }
 
 
+// ------------------------------------------------
+
+// Connection является одиночным соединением и координирует всю работу от кодирования в RESP
+// до возврата результата
 type Connection struct {
 	opts *models.Options
 	mu sync.Mutex
