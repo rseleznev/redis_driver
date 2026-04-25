@@ -11,7 +11,7 @@ import (
 type Socket int
 
 // NewSocket создает новый сокет
-func NewSocket(tcpSendBufLen, tcpRcvBufLen int) (Socket, error) {
+func NewSocket(opts *models.Options) (Socket, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 	if err != nil {
@@ -61,14 +61,14 @@ func NewSocket(tcpSendBufLen, tcpRcvBufLen int) (Socket, error) {
 
 	// Настройки TCP-буферов ядра
 	// надо покрыть тестами!
-	if tcpSendBufLen > 0 {
-		err = syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, tcpSendBufLen)
+	if opts.TCPSendBufLen > 0 {
+		err = syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, opts.TCPSendBufLen)
 		if err != nil {
 			return 0, err
 		}
 	}
-	if tcpRcvBufLen > 0 {
-		err = syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, tcpRcvBufLen)
+	if opts.TCPReceiveBufLen > 0 {
+		err = syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, opts.TCPReceiveBufLen)
 		if err != nil {
 			return 0, err
 		}

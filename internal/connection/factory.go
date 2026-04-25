@@ -19,7 +19,7 @@ var (
 type Factory struct {}
 
 func (f Factory) NewSocket(opts *models.Options) (socketer, error) {
-	socket, err := socket.NewSocket(opts.TCPSendBufLen, opts.TCPReceiveBufLen)
+	socket, err := socket.NewSocket(opts)
 	if err != nil {
 		return nil, err
 	}
