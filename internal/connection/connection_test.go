@@ -240,6 +240,49 @@ func Test_poll(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "fail sync ErrConnectionClosed",
+			opts: &models.Options{
+				PollingTimeout: time.Millisecond*500,
+			},
+			expectedErr: models.ErrConnectionClosed,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
+					return fmt.Errorf("test err: %w", syscall.EPIPE)
+				},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+		},
+		{
+			name: "fail async ErrConnectionClosed",
+			opts: &models.Options{
+				PollingTimeout: time.Millisecond*500,
+			},
+			expectedErr: models.ErrConnectionClosed,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
+					go func() {
+						select {
+						case pu.ResultChan <- fmt.Errorf("test err: %w", models.ErrSocketHUPEvent):
+
+						case <-done:
+
+						}
+					}()
+					
+					return nil
+				},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+		},
 	}
 
 	for _, tt := range testData {
