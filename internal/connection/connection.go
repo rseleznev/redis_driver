@@ -11,6 +11,7 @@ import (
 
 type Connector interface {
 	Process(context.Context, []any) (any, error)
+	Close()
 }
 
 
@@ -442,6 +443,11 @@ func (c *Connection) receive(ctx context.Context) error {
 	}
 	
 	return nil
+}
+
+func (c *Connection) Close() {
+	// закрываем текущий сокет
+	c.socket.Close()
 }
 
 func (c *Connection) reconnect() error {
