@@ -399,6 +399,70 @@ func TestProcess(t *testing.T) {
 			},
 			params: []any{"GET", "test"},
 		},
+		{
+			name: "fail on send with bufs clear",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+			},
+			expectedErr: models.ErrSendNoAccess,
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockCoder: mockCoder{
+				encodeFunc: func(sb *models.SendBuf, a []any) error {
+					testConnection.sendBuf.WritePos = 356
+					
+					return nil
+				},
+				decodeFunc: func(b []byte) (any, error) {
+					return "", nil
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {
+					return 0, models.ErrSendNoAccess
+				},
+				receiveFunc: func(rb *models.RecvBuf) error {
+					return nil
+				},
+				changeSocketFunc: func(i int) {},
+			},
+			params: []any{"GET", "test"},
+		},
+		{
+			name: "fail on decode with bufs clear",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+			},
+			expectedErr: models.ErrSendNoAccess,
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockCoder: mockCoder{
+				encodeFunc: func(sb *models.SendBuf, a []any) error {
+					testConnection.sendBuf.WritePos = 356
+					
+					return nil
+				},
+				decodeFunc: func(b []byte) (any, error) {
+					return nil, models.ErrSendNoAccess
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {
+					return 356, nil
+				},
+				receiveFunc: func(rb *models.RecvBuf) error {
+					testConnection.recvBuf.WritePos = 725
+					
+					return nil
+				},
+				changeSocketFunc: func(i int) {},
+			},
+			params: []any{"GET", "test"},
+		},
 	}
 
 	for _, tt := range testData {
