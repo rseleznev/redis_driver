@@ -255,6 +255,9 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// очищаем буферы
+	defer c.clearBufs()
 	
 
 	if ctx.Err() != nil {
@@ -289,9 +292,6 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// очищаем буферы
-	defer c.clearBufs()
 
 	return result, nil
 }
