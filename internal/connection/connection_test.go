@@ -12,24 +12,18 @@ import (
 )
 
 type mockPoller struct {
-	done chan struct{}
-	
-	addFunc func(models.PollingUnit, <-chan struct{}) error
+	addFunc func(models.PollingUnit) error
 	getErrorFunc func() error
 	deleteSocketFunc func(int)
 }
 func (mp *mockPoller) Add(unit models.PollingUnit) error {
-	return mp.addFunc(unit, mp.done)
+	return mp.addFunc(unit)
 }
 func (mp *mockPoller) GetError() error {
 	return mp.getErrorFunc()
 }
 func (mp *mockPoller) DeleteSocketFromPolling(n int) {
-	mp.closeTestChan()
 	mp.deleteSocketFunc(n)
-}
-func (mp *mockPoller) closeTestChan() {
-	close(mp.done)
 }
 
 
@@ -110,14 +104,9 @@ func Test_connect(t *testing.T) {
 			},
 			expectedErr: nil,
 			mockPoll: mockPoller{
-				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
+				addFunc: func(pu models.PollingUnit) error {
 					go func ()  {
-						select {
-						case pu.ResultChan <- nil:
-
-						case <-done:
-
-						}
+						pu.ResultChan <- nil
 					}()
 
 					return nil
@@ -140,7 +129,7 @@ func Test_connect(t *testing.T) {
 			},
 			expectedErr: models.ErrConnectionRetriesFailed,
 			mockPoll: mockPoller{
-				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
+				addFunc: func(pu models.PollingUnit) error {
 					return models.ErrSocketAlreadyAdded
 				},
 			},
@@ -196,14 +185,9 @@ func Test_poll(t *testing.T) {
 			},
 			expectedErr: nil,
 			mockPoll: mockPoller{
-				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
+				addFunc: func(pu models.PollingUnit) error {
 					go func ()  {
-						select {
-						case pu.ResultChan <- nil:
-
-						case <-done:
-
-						}
+						pu.ResultChan <- nil
 					}()
 
 					return nil
@@ -222,7 +206,7 @@ func Test_poll(t *testing.T) {
 			},
 			expectedErr: models.ErrPollTimeout,
 			mockPoll: mockPoller{
-				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
+				addFunc: func(pu models.PollingUnit) error {
 					return models.ErrSocketAlreadyAdded
 				},
 			},
@@ -239,20 +223,7 @@ func Test_poll(t *testing.T) {
 			},
 			expectedErr: models.ErrPollTimeout,
 			mockPoll: mockPoller{
-				done: make(chan struct{}),
-				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
-					go func() {
-						time.Sleep(time.Second*1)
-						
-						select {
-						case pu.ResultChan <- nil:
-
-						case <-done:
-
-						}
-						
-					}()
-					
+				addFunc: func(pu models.PollingUnit) error {
 					return nil
 				},
 				deleteSocketFunc: func(_ int) {},
@@ -270,7 +241,7 @@ func Test_poll(t *testing.T) {
 			},
 			expectedErr: models.ErrConnectionClosed,
 			mockPoll: mockPoller{
-				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
+				addFunc: func(pu models.PollingUnit) error {
 					return fmt.Errorf("test err: %w", syscall.EPIPE)
 				},
 			},
@@ -287,14 +258,9 @@ func Test_poll(t *testing.T) {
 			},
 			expectedErr: models.ErrConnectionClosed,
 			mockPoll: mockPoller{
-				addFunc: func(pu models.PollingUnit, done <-chan struct{}) error {
+				addFunc: func(pu models.PollingUnit) error {
 					go func() {
-						select {
-						case pu.ResultChan <- fmt.Errorf("test err: %w", models.ErrSocketHUPEvent):
-
-						case <-done:
-
-						}
+						pu.ResultChan <- fmt.Errorf("test err: %w", models.ErrSocketHUPEvent)
 					}()
 					
 					return nil
@@ -501,6 +467,195 @@ func TestProcess(t *testing.T) {
 			if testConnection.recvBuf.WritePos != 0 {
 				t.Error("Буфер получения не сброшен")
 			}
+		})
+	}
+}
+
+func Test_send(t *testing.T) {
+	requestCounter := 1
+	
+	testData := []struct{
+		name string
+		opts *models.Options
+		expectedErr error
+		mockPoll mockPoller
+		mockSock mockSocket
+		mockMsgr mockMessenger
+	}{
+		{
+			name: "success short",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*100,
+			},
+			expectedErr: nil,
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {
+					return 742, nil
+				},
+			},
+		},
+		{
+			name: "success full",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*100,
+			},
+			expectedErr: nil,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					go func() {
+						pu.ResultChan <- nil
+					}()
+					
+					return nil
+				},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {
+					if requestCounter == 1 {
+						requestCounter++
+						return 0, fmt.Errorf("test err: %w", syscall.EAGAIN)
+					}
+					return 742, nil
+				},
+			},
+		},
+		{
+			name: "success with trunc",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*100,
+			},
+			expectedErr: nil,
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {		
+					if requestCounter == 1 {
+						requestCounter++
+						return 742/2, models.ErrSendMsgTrunc
+					}
+					return 742/2, nil
+				},
+			},
+		},
+		{
+			name: "fail timeout while sending",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*100,
+			},
+			expectedErr: context.DeadlineExceeded,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					go func() {
+						pu.ResultChan <- nil
+					}()
+					
+					return nil
+				},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {		
+					time.Sleep(time.Millisecond*510)
+					
+					return 0, syscall.EAGAIN
+				},
+			},
+		},
+		{
+			name: "fail timeout after sending",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*100,
+			},
+			expectedErr: context.DeadlineExceeded,
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {		
+					time.Sleep(time.Millisecond*520)
+					
+					return 742, nil
+				},
+			},
+		},
+		{
+			name: "fail ErrConnectionRetriesFailed",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: models.ErrConnectionRetriesFailed,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {					
+					time.Sleep(time.Millisecond*100)
+					
+					return nil
+				},
+				deleteSocketFunc: func(_ int) {},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {		
+					return 0, fmt.Errorf("test err: %w", syscall.EAGAIN)
+				},
+			},
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testConnection.opts = tt.opts
+			testConnection.poller = &tt.mockPoll
+			testConnection.socket = tt.mockSock
+			testConnection.msgr = tt.mockMsgr
+			testConnection.sendBuf = &models.SendBuf{
+				WritePos: 742,
+				Buf: make([]byte, testConnection.opts.SendBufMinLen),
+			}
+			testConnection.recvBuf = &models.RecvBuf{
+				Buf: make([]byte, testConnection.opts.ReceiveBufMinLen),
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
+			defer cancel()
+
+			err := testConnection.send(ctx)
+			if err != tt.expectedErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
+			}
+
+			requestCounter = 1
 		})
 	}
 }
