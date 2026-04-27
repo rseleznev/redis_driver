@@ -290,7 +290,8 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 		return nil, err
 	}
 
-	// очищаем буферы?
+	// очищаем буферы
+	c.clearBufs()
 
 	return result, nil
 }
@@ -541,6 +542,16 @@ func (c *Connection) getRecvBufWithWritePos() []byte {
 
 func (c *Connection) getRecvBufWritePos() int {
 	return c.recvBuf.WritePos
+}
+
+// clearBufs очищает буферы.
+// Сами данные можем не трогать, т.к. всё завязано на WritePos,
+// и поэтому зануляем только WritePos
+func (c *Connection) clearBufs() {
+	c.sendBuf.WritePos = 0
+	c.sendBuf.SentBytes = 0
+
+	c.recvBuf.WritePos = 0
 }
 
 
