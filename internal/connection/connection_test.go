@@ -193,7 +193,7 @@ func Test_poll(t *testing.T) {
 			},
 		},
 		{
-			name: "fail timeout poller.Add",
+			name: "fail sync timeout",
 			opts: &models.Options{
 				PollingTimeout: time.Millisecond*500,
 			},
@@ -210,7 +210,7 @@ func Test_poll(t *testing.T) {
 			},
 		},
 		{
-			name: "fail result timeout",
+			name: "fail async timeout",
 			opts: &models.Options{
 				PollingTimeout: time.Millisecond*500,
 			},
