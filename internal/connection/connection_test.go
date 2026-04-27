@@ -11,6 +11,17 @@ import (
 	"github.com/rseleznev/redis_driver/internal/models"
 )
 
+type mockFactory Factory
+
+func (mf mockFactory) NewSocket(opts *models.Options) (mockSocket, error) {
+	return mockSocket{
+		getSocketFdFunc: func() int {
+			return 2
+		},
+	}, nil
+}
+
+
 type mockPoller struct {
 	addFunc func(models.PollingUnit) error
 	getErrorFunc func() error
@@ -554,6 +565,34 @@ func Test_send(t *testing.T) {
 			},
 		},
 		{
+			name: "success with reconnect",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*100,
+			},
+			expectedErr: nil,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					return models.ErrConnectionReset
+				},
+			},
+			mockSock: mockSocket{
+				closeFunc: func() {},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {		
+					if requestCounter == 1 {
+						// requestCounter++
+						return 0, fmt.Errorf("test err: %w", syscall.EAGAIN)
+					}
+					return 742, nil
+				},
+				changeSocketFunc: func(_ int) {},
+			},
+		},
+		{
 			name: "fail timeout while sending",
 			opts: &models.Options{
 				RetryAmount: 3,
@@ -636,6 +675,7 @@ func Test_send(t *testing.T) {
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			testConnection.opts = tt.opts
+			testConnection.factory = Factory(mockFactory{})
 			testConnection.poller = &tt.mockPoll
 			testConnection.socket = tt.mockSock
 			testConnection.msgr = tt.mockMsgr
