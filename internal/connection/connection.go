@@ -441,6 +441,7 @@ func (c *Connection) receive(ctx context.Context) error {
 			
 			}
 		}
+		break
 	}
 	
 	if ctx.Err() != nil {
