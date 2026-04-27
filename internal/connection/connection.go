@@ -291,7 +291,7 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	}
 
 	// очищаем буферы
-	c.clearBufs()
+	defer c.clearBufs()
 
 	return result, nil
 }
