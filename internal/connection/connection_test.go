@@ -709,3 +709,201 @@ func Test_send(t *testing.T) {
 		})
 	}
 }
+
+func Test_receive(t *testing.T) {
+	requestCounter := 1
+	
+	testData := []struct{
+		name string
+		opts *models.Options
+		expectedErr error
+		checkFunc func()
+		mockPoll mockPoller
+		mockSock mockSocket
+		mockMsgr mockMessenger
+	}{
+		{
+			name: "success short",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: nil,
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					rb.WritePos = 138
+
+					return nil
+				},
+			},
+		},
+		{
+			name: "success long",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: nil,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					go func() {
+						pu.ResultChan <- nil
+					}()
+					
+					return nil
+				},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					if requestCounter == 1 {
+						requestCounter++
+						return fmt.Errorf("test err: %w", syscall.EAGAIN)
+					}
+
+					rb.WritePos = 138
+					
+					return nil
+				},
+			},
+		},
+		{
+			name: "success with recv buf 2x increase",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				ReceiveBufMaxLen: 10 * 1024,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: nil,
+			checkFunc: func() {
+				if len(testConnection.recvBuf.Buf) != 2048 {
+					t.Error("Длина буфера не соответствует ожидаемой")
+				}
+			},
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					if requestCounter == 1 {
+						rb.WritePos = 1024
+						requestCounter++
+
+						return models.ErrRecvMsgTrunc	
+					}
+					
+					rb.WritePos = 1722
+
+					return nil
+				},
+			},
+		},
+		{
+			name: "success with recv buf max increase",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				ReceiveBufMaxLen: 1800,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: nil,
+			checkFunc: func() {
+				if len(testConnection.recvBuf.Buf) != 1800 {
+					t.Error("Длина буфера не соответствует ожидаемой")
+				}
+			},
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					if requestCounter == 1 {
+						rb.WritePos = 1024
+						requestCounter++
+
+						return models.ErrRecvMsgTrunc	
+					}
+					
+					rb.WritePos = 1722
+
+					return nil
+				},
+			},
+		},
+		{
+			name: "fail ErrRecvMsgTooBig",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				ReceiveBufMaxLen: 1024,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: models.ErrRecvMsgTooBig,
+			checkFunc: func() {
+				if len(testConnection.recvBuf.Buf) != 1024 {
+					t.Error("Длина буфера не соответствует ожидаемой")
+				}
+			},
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					go func() {
+						pu.ResultChan <- nil
+					}()
+					
+					return nil
+				},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+				closeFunc: func() {},
+			},
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					rb.WritePos = 1024
+
+					return models.ErrRecvMsgTrunc	
+				},
+				changeSocketFunc: func(_ int) {},
+			},
+		},
+	}
+
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			testConnection.opts = tt.opts
+			testConnection.factory = Factory(mockFactory{})
+			testConnection.poller = &tt.mockPoll
+			testConnection.socket = tt.mockSock
+			testConnection.msgr = tt.mockMsgr
+			testConnection.sendBuf = &models.SendBuf{
+				WritePos: 742,
+				Buf: make([]byte, testConnection.opts.SendBufMinLen),
+			}
+			testConnection.recvBuf = &models.RecvBuf{
+				Buf: make([]byte, testConnection.opts.ReceiveBufMinLen),
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
+			defer cancel()
+
+			err := testConnection.receive(ctx)
+			if err != tt.expectedErr {
+				t.Errorf("Ожидаемая ошибка %s, получено %s", tt.expectedErr, err)
+			}
+
+			if tt.checkFunc != nil {
+				tt.checkFunc()
+			}
+
+			requestCounter = 1
+		})
+	}
+}
