@@ -575,16 +575,26 @@ func Test_send(t *testing.T) {
 			expectedErr: nil,
 			mockPoll: mockPoller{
 				addFunc: func(pu models.PollingUnit) error {
-					return models.ErrConnectionReset
+					if requestCounter == 1 {
+						requestCounter++
+						return models.ErrConnectionReset
+					}
+					go func ()  {
+						pu.ResultChan <- nil
+					}()
+
+					return nil
 				},
 			},
 			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
 				closeFunc: func() {},
 			},
 			mockMsgr: mockMessenger{
 				sendFunc: func(b []byte) (int, error) {		
 					if requestCounter == 1 {
-						// requestCounter++
 						return 0, fmt.Errorf("test err: %w", syscall.EAGAIN)
 					}
 					return 742, nil
