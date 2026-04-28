@@ -250,11 +250,25 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 		return nil, ctx.Err()
 	}
 
+	var err error
+
 	// кодируем в RESP
-	err := c.coder.Encode(c.sendBuf, cmdArgs)
-	if err != nil {
-		return nil, err
+	for {
+		err = c.coder.Encode(c.sendBuf, cmdArgs)
+		if err != nil {
+			if err == models.ErrSendBufTooShort {
+				if ok := c.increaseSendBuf(); ok {
+					// буфер увеличен, пытаемся заново закодировать
+					continue
+				}
+				return nil, err
+			}
+			
+			return nil, err
+		}
+		break	
 	}
+	
 
 	// очищаем буферы
 	defer c.clearBufs()
@@ -498,6 +512,27 @@ func (c *Connection) getSentBytes() int {
 
 func (c *Connection) addSentBytes(sentBytes int) {
 	c.sendBuf.SentBytes += sentBytes
+}
+
+func (c *Connection) increaseSendBuf() bool {
+	// можем ли вообще увеличить буфер
+	if c.sendBufFreeSpaceLen() <= 0 {
+		return false // увеличить не можем
+	}
+	
+	return true
+}
+
+func (c *Connection) sendBufFreeSpaceLen() int {
+	return c.sendBufMaxLen() - c.sendBufLen()
+}
+
+func (c *Connection) sendBufMaxLen() int {
+	return c.opts.SendBufMaxLen
+}
+
+func (c *Connection) sendBufLen() int {
+	return len(c.sendBuf.Buf)
 }
 
 func (c *Connection) increaseRecvBuf() bool {
