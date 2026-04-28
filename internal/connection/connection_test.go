@@ -960,6 +960,34 @@ func Test_receive(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "fail ErrOperationRetriesFailed",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: models.ErrOperationRetriesFailed,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					time.Sleep(time.Millisecond*30)
+					
+					return nil
+				},
+				deleteSocketFunc: func(_ int) {},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					return fmt.Errorf("test err: %w", syscall.EWOULDBLOCK)
+				},
+			},
+		},
 	}
 
 	for _, tt := range testData {
