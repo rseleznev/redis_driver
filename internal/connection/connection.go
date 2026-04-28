@@ -519,6 +519,21 @@ func (c *Connection) increaseSendBuf() bool {
 	if c.sendBufFreeSpaceLen() <= 0 {
 		return false // увеличить не можем
 	}
+
+	// можем ли увеличить в 2 раза
+	if c.sendBufLen()*2 <= c.sendBufMaxLen() {
+		// увеличиваем в 2 раза
+		newBuf := make([]byte, c.sendBufLen()*2)
+		copy(newBuf, c.sendBuf.Buf)
+		c.sendBuf.Buf = newBuf
+
+		return true
+	}
+
+	// увеличиваем насколько возможно
+	newBuf := make([]byte, c.sendBufLen()+c.sendBufFreeSpaceLen())
+	copy(newBuf, c.sendBuf.Buf)
+	c.sendBuf.Buf = newBuf
 	
 	return true
 }
