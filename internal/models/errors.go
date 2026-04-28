@@ -28,7 +28,6 @@ var (
 
 	// connection
 	ErrConnectionInProcess = errors.New("redis_driver: connection attempt already in process") // EALREADY
-	ErrConnectionRetriesFailed = errors.New("redis_driver: all connection retries failed")
 	ErrConnectionRefused = errors.New("redis_driver: connection is refused") // ECONNREFUSED
 	ErrServerUnreachable = errors.New("redis_driver: server is unreachable") // EHOSTUNREACH
 	ErrNetUnreachable = errors.New("redis_driver: network is unreachable") // ENETUNREACH
@@ -47,6 +46,7 @@ var (
 	// ErrRedisProtocol = errors.New("redis_driver: redis protocol error")
 	ErrDataAssert = errors.New("redis_driver: data assertion error")
 	ErrRedisException = errors.New("redis_driver: redis server exception")
+	ErrOperationRetriesFailed = errors.New("redis_driver: all operation retries failed")
 
 	// sending
 	ErrSendMsgTrunc = errors.New("redis_driver: sended message truncated")

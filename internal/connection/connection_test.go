@@ -133,12 +133,12 @@ func Test_connect(t *testing.T) {
 			},
 		},
 		{
-			name: "fail ErrConnectionRetriesFailed",
+			name: "fail ErrOperationRetriesFailed",
 			opts: &models.Options{
 				RetryAmount: 3,
 				PollingTimeout: time.Millisecond*500,
 			},
-			expectedErr: models.ErrConnectionRetriesFailed,
+			expectedErr: models.ErrOperationRetriesFailed,
 			mockPoll: mockPoller{
 				addFunc: func(pu models.PollingUnit) error {
 					return models.ErrSocketAlreadyAdded
@@ -653,14 +653,14 @@ func Test_send(t *testing.T) {
 			},
 		},
 		{
-			name: "fail ErrConnectionRetriesFailed",
+			name: "fail ErrOperationRetriesFailed",
 			opts: &models.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
 				PollingTimeout: time.Millisecond*10,
 			},
-			expectedErr: models.ErrConnectionRetriesFailed,
+			expectedErr: models.ErrOperationRetriesFailed,
 			mockPoll: mockPoller{
 				addFunc: func(pu models.PollingUnit) error {					
 					time.Sleep(time.Millisecond*100)
@@ -776,6 +776,47 @@ func Test_receive(t *testing.T) {
 			},
 		},
 		{
+			name: "success after retry",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: nil,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					if requestCounter == 1 {
+						requestCounter++
+						return nil
+					}
+					requestCounter++
+
+					go func() {
+						pu.ResultChan <- nil
+					}()
+					
+					return nil
+				},
+				deleteSocketFunc: func(_ int) {},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					if requestCounter < 3 {
+						return fmt.Errorf("test err: %w", syscall.EWOULDBLOCK)
+					}
+					rb.WritePos = 721
+
+					return nil
+				},
+			},
+		},
+		{
 			name: "success with recv buf 2x increase",
 			opts: &models.Options{
 				RetryAmount: 3,
@@ -874,6 +915,51 @@ func Test_receive(t *testing.T) {
 				changeSocketFunc: func(_ int) {},
 			},
 		},
+		{
+			name: "fail timeout while receiving",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*150,
+			},
+			expectedErr: context.DeadlineExceeded,
+			mockPoll: mockPoller{
+				addFunc: func(pu models.PollingUnit) error {
+					time.Sleep(time.Millisecond*170)
+					
+					return nil
+				},
+				deleteSocketFunc: func(_ int) {},
+			},
+			mockSock: mockSocket{
+				getSocketFdFunc: func() int {
+					return 2
+				},
+			},
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					return fmt.Errorf("test err: %w", syscall.EWOULDBLOCK)
+				},
+			},
+		},
+		{
+			name: "fail timeout after receiving",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+				PollingTimeout: time.Millisecond*10,
+			},
+			expectedErr: context.DeadlineExceeded,
+			mockMsgr: mockMessenger{
+				receiveFunc: func(rb *models.RecvBuf) error {
+					time.Sleep(time.Millisecond*120)
+
+					return nil
+				},
+			},
+		},
 	}
 
 	for _, tt := range testData {
@@ -891,7 +977,7 @@ func Test_receive(t *testing.T) {
 				Buf: make([]byte, testConnection.opts.ReceiveBufMinLen),
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 			defer cancel()
 
 			err := testConnection.receive(ctx)

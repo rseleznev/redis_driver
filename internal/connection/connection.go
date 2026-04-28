@@ -116,7 +116,7 @@ func (c *Connection) connect() error {
 	
 	for {
 		if retriesAvailable == 0 {
-			return models.ErrConnectionRetriesFailed
+			return models.ErrOperationRetriesFailed
 		}
 		
 		err := c.socket.Connect(c.opts)
@@ -305,7 +305,7 @@ func (c *Connection) send(ctx context.Context) error {
 
 	for ctx.Err() == nil {
 		if retriesAvailable == 0 {
-			return models.ErrConnectionRetriesFailed
+			return models.ErrOperationRetriesFailed
 		}
 		
 		if c.getSentBytes() == 0 {
@@ -387,7 +387,7 @@ func (c *Connection) receive(ctx context.Context) error {
 
 	for ctx.Err() == nil {
 		if retriesAvailable == 0 {
-			return models.ErrConnectionRetriesFailed
+			return models.ErrOperationRetriesFailed
 		}
 		
 		err := c.msgr.Receive(c.recvBuf) // передаем структуру, чтобы обработчик указал позицию окончания записи
