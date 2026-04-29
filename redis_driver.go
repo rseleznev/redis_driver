@@ -26,12 +26,18 @@ func NewClient(opts *models.Options) (*Client, error) {
 		return nil, err
 	}
 
-	// вызываем Hello3()
-
-	return &Client{
+	client := &Client{
 		opts: opts,
 		Connector: c,
-	}, nil
+	}
+
+	// включаем RESP3
+	_, err = client.Hello3(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }
 
 func (c *Client) Ping(ctx context.Context) (string, error) {
