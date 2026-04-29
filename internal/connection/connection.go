@@ -252,6 +252,9 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 
 	var err error
 
+	// очищаем буферы
+	defer c.clearBufs()
+
 	// кодируем в RESP
 	for {
 		err = c.coder.Encode(c.sendBuf, cmdArgs)
@@ -268,10 +271,6 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 		}
 		break	
 	}
-	
-
-	// очищаем буферы
-	defer c.clearBufs()
 	
 
 	if ctx.Err() != nil {
