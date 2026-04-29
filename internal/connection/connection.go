@@ -437,7 +437,7 @@ func (c *Connection) receive(ctx context.Context) error {
 						return err
 					}
 
-					return models.ErrRecvMsgTooBig
+					return models.ErrRecvBufTooShort
 				}
 
 			// сокет не подключен

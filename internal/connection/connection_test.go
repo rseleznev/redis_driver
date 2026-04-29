@@ -300,12 +300,15 @@ func Test_poll(t *testing.T) {
 }
 
 func TestProcess(t *testing.T) {
+	requestCounter := 1
+	
 	testData := []struct{
 		name string
 		opts *models.Options
 		expectedErr error
 		setUpFunc func()
 		cleanUpFunc func()
+		checkFunc func()
 		mockPoll mockPoller
 		mockSock mockSocket
 		mockCoder mockCoder
@@ -325,6 +328,127 @@ func TestProcess(t *testing.T) {
 			mockCoder: mockCoder{
 				encodeFunc: func(sb *models.SendBuf, a []any) error {
 					return nil
+				},
+				decodeFunc: func(b []byte) (any, error) {
+					return "", nil
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {
+					return 10, nil
+				},
+				receiveFunc: func(rb *models.RecvBuf) error {
+					return nil
+				},
+				changeSocketFunc: func(i int) {},
+			},
+			params: []any{"GET", "test"},
+		},
+		{
+			name: "success with send buf 2x increase",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				SendBufMaxLen: 10 * 1024,
+				ReceiveBufMinLen: 1024,
+			},
+			expectedErr: nil,
+			checkFunc: func() {
+				if len(testConnection.sendBuf.Buf) != 2048 {
+					t.Error("Длина буфера не соответствует ожидаемой")
+				}
+			},
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockCoder: mockCoder{
+				encodeFunc: func(sb *models.SendBuf, a []any) error {
+					if requestCounter == 1 {
+						requestCounter++
+						sb.WritePos = 1024
+						
+						return models.ErrSendBufTooShort	
+					}
+					
+					return nil
+				},
+				decodeFunc: func(b []byte) (any, error) {
+					return "", nil
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {
+					return 10, nil
+				},
+				receiveFunc: func(rb *models.RecvBuf) error {
+					return nil
+				},
+				changeSocketFunc: func(i int) {},
+			},
+			params: []any{"GET", "test"},
+		},
+		{
+			name: "success with send buf max increase",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				SendBufMaxLen: 1900,
+				ReceiveBufMinLen: 1024,
+			},
+			expectedErr: nil,
+			checkFunc: func() {
+				if len(testConnection.sendBuf.Buf) != 1900 {
+					t.Error("Длина буфера не соответствует ожидаемой")
+				}
+			},
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockCoder: mockCoder{
+				encodeFunc: func(sb *models.SendBuf, a []any) error {
+					if requestCounter == 1 {
+						requestCounter++
+						sb.WritePos = 1024
+						
+						return models.ErrSendBufTooShort	
+					}
+					
+					return nil
+				},
+				decodeFunc: func(b []byte) (any, error) {
+					return "", nil
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {
+					return 10, nil
+				},
+				receiveFunc: func(rb *models.RecvBuf) error {
+					return nil
+				},
+				changeSocketFunc: func(i int) {},
+			},
+			params: []any{"GET", "test"},
+		},
+		{
+			name: "fail ErrSendBufTooShort",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				SendBufMaxLen: 1024,
+				ReceiveBufMinLen: 1024,
+			},
+			expectedErr: models.ErrSendBufTooShort,
+			checkFunc: func() {
+				if len(testConnection.sendBuf.Buf) != 1024 {
+					t.Error("Длина буфера не соответствует ожидаемой")
+				}
+			},
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockCoder: mockCoder{
+				encodeFunc: func(sb *models.SendBuf, a []any) error {
+					sb.WritePos = 1024
+						
+					return models.ErrSendBufTooShort
 				},
 				decodeFunc: func(b []byte) (any, error) {
 					return "", nil
@@ -472,12 +596,18 @@ func TestProcess(t *testing.T) {
 				tt.cleanUpFunc()
 			}
 
+			if tt.checkFunc != nil {
+				tt.checkFunc()
+			}
+
 			if testConnection.sendBuf.WritePos != 0 {
 				t.Error("Буфер отправки не сброшен")
 			}
 			if testConnection.recvBuf.WritePos != 0 {
 				t.Error("Буфер получения не сброшен")
 			}
+
+			requestCounter = 1
 		})
 	}
 }
@@ -885,7 +1015,7 @@ func Test_receive(t *testing.T) {
 				ReceiveBufMaxLen: 1024,
 				PollingTimeout: time.Millisecond*10,
 			},
-			expectedErr: models.ErrRecvMsgTooBig,
+			expectedErr: models.ErrRecvBufTooShort,
 			checkFunc: func() {
 				if len(testConnection.recvBuf.Buf) != 1024 {
 					t.Error("Длина буфера не соответствует ожидаемой")
