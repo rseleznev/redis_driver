@@ -40,6 +40,7 @@ func NewClient(opts *models.Options) (*Client, error) {
 	return client, nil
 }
 
+// Ping проверяет соединение с сервером
 func (c *Client) Ping(ctx context.Context) (string, error) {
 	args := make([]any, 0, 1)
 	args = append(args, "PING")
@@ -58,14 +59,16 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 		break
 	}
 
-	result, ok := r.(string)
+	result, ok := r.([]byte)
 	if !ok {
 		return "", models.ErrDataAssert
 	}
 
-	return result, nil
+	return string(result), nil
 }
 
+// Hello3 проверяет соединение аналогично Ping, но также возвращает
+// дополнительную информацию о клиенте
 func (c *Client) Hello3(ctx context.Context) (map[string]string, error) {
 	args := make([]any, 0, 2)
 	args = append(args, "HELLO", "3")
@@ -92,6 +95,8 @@ func (c *Client) Hello3(ctx context.Context) (map[string]string, error) {
 	return result, nil
 }
 
+// SetValueForKey устанавливает значение для ключа.
+// Если значение уже есть, оно перезаписывается
 func (c *Client) SetValueForKey(ctx context.Context, key string, value any, duration time.Duration) error {
 	args := make([]any, 0, 5)
 	args = append(args, "SET", key, value)
@@ -114,6 +119,8 @@ func (c *Client) SetValueForKey(ctx context.Context, key string, value any, dura
 	return nil
 }
 
+// GetValueByKey получает значение по ключу.
+// Всегда возвращает срез байт независимо от того, что было записано
 func (c *Client) GetValueByKey(ctx context.Context, key string) ([]byte, error) {
 	args := make([]any, 0, 2)
 	args = append(args, "GET", key)
