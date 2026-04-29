@@ -301,6 +301,7 @@ func Test_poll(t *testing.T) {
 
 func TestProcess(t *testing.T) {
 	requestCounter := 1
+	var checkSendBufWritePos, checkRecvBufWritePos int
 	
 	testData := []struct{
 		name string
@@ -338,6 +339,51 @@ func TestProcess(t *testing.T) {
 					return 10, nil
 				},
 				receiveFunc: func(rb *models.RecvBuf) error {
+					return nil
+				},
+				changeSocketFunc: func(i int) {},
+			},
+			params: []any{"GET", "test"},
+		},
+		{
+			name: "success bufs WritePos",
+			opts: &models.Options{
+				RetryAmount: 3,
+				SendBufMinLen: 1024,
+				ReceiveBufMinLen: 1024,
+			},
+			expectedErr: nil,
+			checkFunc: func() {
+				if checkSendBufWritePos != 720 {
+					t.Error("WritePos буфера отправки не соответствует ожидаемой")
+				}
+				if checkRecvBufWritePos != 25 {
+					t.Error("WritePos буфера получения не соответствует ожидаемой")
+				}
+			},
+			mockPoll: mockPoller{},
+			mockSock: mockSocket{},
+			mockCoder: mockCoder{
+				encodeFunc: func(sb *models.SendBuf, a []any) error {
+					sb.WritePos = 720
+					
+					return nil
+				},
+				decodeFunc: func(b []byte) (any, error) {
+					checkRecvBufWritePos = len(b)
+					
+					return "", nil
+				},
+			},
+			mockMsgr: mockMessenger{
+				sendFunc: func(b []byte) (int, error) {
+					checkSendBufWritePos = len(b)
+					
+					return 10, nil
+				},
+				receiveFunc: func(rb *models.RecvBuf) error {
+					rb.WritePos = 25
+					
 					return nil
 				},
 				changeSocketFunc: func(i int) {},
