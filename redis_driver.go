@@ -52,35 +52,84 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 		break
 	}
 
-	res, ok := r.(string)
+	result, ok := r.(string)
 	if !ok {
 		return "", models.ErrDataAssert
 	}
 
-	return res, nil
+	return result, nil
 }
 
-func (c *Client) Hello(ctx context.Context) (map[string]string, error) {
+func (c *Client) Hello3(ctx context.Context) (map[string]string, error) {
 	args := make([]any, 0, 2)
 	args = append(args, "HELLO", "3")
 
-	return nil, nil
+	var r any
+	var err error
+
+	for ctx.Err() == nil {
+		r, err = c.Process(ctx, args)
+		if err != nil {
+			if err == models.ErrConnectionCmdInProcess {
+				continue
+			}
+			return nil, err
+		}
+		break
+	}
+
+	result, ok := r.(map[string]string)
+	if !ok {
+		return nil, models.ErrDataAssert
+	}
+
+	return result, nil
 }
 
-func (c *Client) Set(ctx context.Context, key string, value any, duration time.Duration) error {
+func (c *Client) SetValueForKey(ctx context.Context, key string, value any, duration time.Duration) error {
 	args := make([]any, 0, 5)
 	args = append(args, "SET", key, value)
 	if ms := duration.Milliseconds(); ms > 0 {
 		msString := strconv.FormatInt(ms, 10)
 		args = append(args, "PX", msString)
 	}
+
+	for ctx.Err() == nil {
+		_, err := c.Process(ctx, args) // игнорируем строку "OK"
+		if err != nil {
+			if err == models.ErrConnectionCmdInProcess {
+				continue
+			}
+			return err
+		}
+		break
+	}
 	
 	return nil
 }
 
-func (c *Client) Get(ctx context.Context, key string) (any, error) {
+func (c *Client) GetValueByKey(ctx context.Context, key string) ([]byte, error) {
 	args := make([]any, 0, 2)
 	args = append(args, "GET", key)
 
-	return nil, nil
+	var r any
+	var err error
+
+	for ctx.Err() == nil {
+		r, err = c.Process(ctx, args)
+		if err != nil {
+			if err == models.ErrConnectionCmdInProcess {
+				continue
+			}
+			return nil, err
+		}
+		break
+	}
+
+	result, ok := r.([]byte)
+	if !ok {
+		return nil, models.ErrDataAssert
+	}
+
+	return result, nil
 }
