@@ -1197,3 +1197,71 @@ func Test_receive(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessConcurrently(t *testing.T) {
+	testConnection.opts = &models.Options{
+		RetryAmount: 3,
+		SendBufMinLen: 1024,
+		ReceiveBufMinLen: 1024,
+	}
+	testConnection.coder = mockCoder{
+		encodeFunc: func(sb *models.SendBuf, a []any) error {
+			time.Sleep(time.Millisecond*50)
+
+			return nil
+		},
+		decodeFunc: func(b []byte) (any, error) {
+			return "", nil
+		},
+	}
+	testConnection.msgr = mockMessenger{
+		sendFunc: func(b []byte) (int, error) {
+			return len(b), nil
+		},
+		receiveFunc: func(rb *models.RecvBuf) error {
+			return nil
+		},
+	}
+	testConnection.sendBuf = &models.SendBuf{
+		Buf: make([]byte, testConnection.opts.SendBufMinLen),
+	}
+	testConnection.recvBuf = &models.RecvBuf{
+		Buf: make([]byte, testConnection.opts.ReceiveBufMinLen),
+	}
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+		defer cancel()
+		
+		_, err := testConnection.Process(ctx, []any{"PING"})
+		if err != nil {
+			t.Error("Неожиданная ошибка: ", err)
+		}	
+	})
+	wg.Go(func() {
+		time.Sleep(time.Millisecond*10)
+		
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+		defer cancel()
+		
+		_, err := testConnection.Process(ctx, []any{"HELLO", "3"})
+		if err != models.ErrConnectionCmdInProcess {
+			t.Errorf("Ожидаемая ошибка %s, получено %s", models.ErrConnectionCmdInProcess, err)
+		}	
+	})
+	wg.Go(func() {
+		time.Sleep(time.Millisecond*20)
+		
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+		defer cancel()
+		
+		_, err := testConnection.Process(ctx, []any{"GET", "test"})
+		if err != models.ErrConnectionCmdInProcess {
+			t.Errorf("Ожидаемая ошибка %s, получено %s", models.ErrConnectionCmdInProcess, err)
+		}	
+	})
+
+	wg.Wait()
+}
