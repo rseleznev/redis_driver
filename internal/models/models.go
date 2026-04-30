@@ -6,8 +6,9 @@ type Options struct {
 	RedisIp [4]byte // сделать поудобнее, одним полем
 	RedisPort int // сделать поудобнее, одним полем
 
-	// Количество ретраев. Должен быть > 0
-	// По умолчанию 3
+	// Количество ретраев (без учета первой попытки, то есть всего будет RetryAmount + 1 попыток).
+	// Должно быть > 0. По умолчанию 3
+	//
 	// При всех неудачных ретраях возвращается ошибка ErrConnectionRetriesFailed
 	RetryAmount int
 
@@ -40,7 +41,7 @@ type Options struct {
 	// По умолчанию 100 МБ
 	SendBufMaxLen int
 	// Средний размер, которого нужно придерживаться. По умолчанию равен SendBufMinLen
-	SendBufAvgLen int
+	// SendBufAvgLen int
 
 	// ------------------------------------------------
 	// Размеры буфера получения
@@ -52,10 +53,11 @@ type Options struct {
 	// По умолчанию 100 МБ
 	ReceiveBufMaxLen int
 	// Средний размер, которого нужно придерживаться. По умолчанию равен ReceiveBufMinLen
-	ReceiveBufAvgLen int
+	// ReceiveBufAvgLen int
 
 	// Таймаут поллинга
-	// По умолчанию 1 сек
+	// По умолчанию 100 миллисек
+	//
 	// При наступлении возвращается ошибка ErrPollTimeout
 	PollingTimeout time.Duration
 }

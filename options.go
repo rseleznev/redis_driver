@@ -18,7 +18,4 @@ func initOptions(opts *models.Options) {
 		opts.ReceiveBufMinLen = 8 * 1024
 		opts.ReceiveBufMaxLen = 100 * 1024 * 1024
 	}
-	if opts.ReceiveBufAvgLen == 0 {
-		opts.ReceiveBufAvgLen = opts.ReceiveBufMinLen
-	}
 }
