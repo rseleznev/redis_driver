@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/models"
+	"golang.org/x/sys/unix"
 )
 
 type Transmitter struct {
@@ -121,7 +122,7 @@ func (t *Transmitter) Send(data []byte) (int, error) {
 
 func (t *Transmitter) Receive(buf *models.RecvBuf) error {
 	// Читаем ответ
-	n, _, coreFlags, _, err := syscall.Recvmsg(t.SocketFd, buf.Buf, nil, 0)
+	n, _, coreFlags, _, err := syscall.Recvmsg(t.SocketFd, buf.Buf[buf.WritePos:], nil, 0)
 	if err != nil {
 		// EAGAIN or EWOULDBLOCK
 		// 		The  socket  is marked nonblocking and the receive operation would block, or a receive timeout had been
@@ -193,7 +194,15 @@ func (t *Transmitter) Receive(buf *models.RecvBuf) error {
 	}
 
 	// Указываем позицию окончания данных
-	buf.WritePos = n
+	buf.WritePos += n
+
+	// Проверяем, что в буфере получения не осталось данных
+	if n == len(buf.Buf) {
+		bytesLeft, _ := unix.IoctlGetInt(t.SocketFd, unix.SIOCINQ)
+		if bytesLeft > 0 {
+			return models.ErrRecvMsgTrunc
+		}
+	}
 
 	return nil
 }
