@@ -344,6 +344,8 @@ func (c *Connection) send(ctx context.Context) error {
 						if err != nil {
 							return err
 						}
+						c.sendBuf.SentBytes = 0
+
 						continue
 					}
 					
@@ -366,6 +368,7 @@ func (c *Connection) send(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
+				c.sendBuf.SentBytes = 0
 				
 				continue
 
@@ -447,6 +450,25 @@ func (c *Connection) receive(ctx context.Context) error {
 					return err
 				}
 
+				continue
+
+			// соединение закрыто сервером
+			case models.ErrConnectionClosed:
+				// переподключаемся
+				err = c.reconnect()
+				if err != nil {
+					return err
+				}
+
+				// повторно отправляем через новый сокет
+				c.sendBuf.SentBytes = 0
+
+				err = c.send(ctx)
+				if err != nil {
+					return err
+				}
+
+				// продолжаем попытку прочитать
 				continue
 
 			// все остальные ошибки
