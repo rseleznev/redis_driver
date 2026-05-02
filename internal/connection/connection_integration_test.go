@@ -34,7 +34,7 @@ var commandTimeout time.Duration = time.Millisecond*100
 
 
 func TestMain(m *testing.M) {
-	// Создаем Connection
+	// Создаем Connection, чтобы иметь возможность мокать отдельные интерфейсы
 	var f Factory
 	
 	// создаем сокет
@@ -90,7 +90,7 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	// conn.Close()
+	conn.Close()
 	os.Exit(code)
 }
 
@@ -264,7 +264,7 @@ func TestWithReconnect(t *testing.T) {
 	}
 
 
-	// Отправляем мапу намеренно, чтобы получить ошибку и сброс соединения
+	// Отправляем некорректный запрос (мапу) намеренно, чтобы получить ошибку протокола и сброс соединения
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	
 	_, err := conn.Process(ctx, []any{"wrongDataType"})
@@ -323,7 +323,7 @@ func TestMultipleStreams(t *testing.T) {
 	})
 
 	// вторая горутина хочет получить значение по ключу multiple_streams_test
-	// (которое будет указано другой горутиной)
+	// (которое будет указано третьей горутиной)
 	wg.Go(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 
