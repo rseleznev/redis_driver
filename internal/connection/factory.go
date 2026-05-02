@@ -3,10 +3,10 @@ package connection
 import (
 	"sync"
 
-	"github.com/rseleznev/redis_driver/internal/models"
 	"github.com/rseleznev/redis_driver/internal/socket"
 	"github.com/rseleznev/redis_driver/internal/translator"
 	"github.com/rseleznev/redis_driver/internal/transmitter"
+	"github.com/rseleznev/redis_driver/options"
 	"github.com/rseleznev/redis_driver/pkg/polling"
 )
 
@@ -18,7 +18,7 @@ var (
 
 type Factory struct {}
 
-func (f Factory) NewSocket(opts *models.Options) (socketer, error) {
+func (f Factory) NewSocket(opts *options.Options) (socketer, error) {
 	socket, err := socket.NewSocket(opts)
 	if err != nil {
 		return nil, err

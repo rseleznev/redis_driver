@@ -6,12 +6,13 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/options"
 )
 
 type Socket int
 
 // NewSocket создает новый сокет
-func NewSocket(opts *models.Options) (Socket, error) {
+func NewSocket(opts *options.Options) (Socket, error) {
 	// Создаем сокет
 	socketFd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM | syscall.SOCK_NONBLOCK, syscall.IPPROTO_TCP)
 	if err != nil {
@@ -83,7 +84,7 @@ func (s Socket) GetSocketFd() int {
 }
 
 // Connect подключает созданный сокет
-func (s Socket) Connect(opts *models.Options) error {
+func (s Socket) Connect(opts *options.Options) error {
 	port := opts.RedisPort
 	ip := opts.RedisIp
 	

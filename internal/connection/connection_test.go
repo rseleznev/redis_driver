@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/options"
 )
 
 type mockFactory Factory
 
-func (mf mockFactory) NewSocket(opts *models.Options) (mockSocket, error) {
+func (mf mockFactory) NewSocket(opts *options.Options) (mockSocket, error) {
 	return mockSocket{
 		getSocketFdFunc: func() int {
 			return 2
@@ -40,13 +41,13 @@ func (mp *mockPoller) DeleteSocketFromPolling(n int) {
 
 type mockSocket struct {
 	getSocketFdFunc func() int
-	connectFunc func(*models.Options) error
+	connectFunc func(*options.Options) error
 	closeFunc func()
 }
 func (ms mockSocket) GetSocketFd() int {
 	return ms.getSocketFdFunc()
 }
-func (ms mockSocket) Connect(opts *models.Options) error {
+func (ms mockSocket) Connect(opts *options.Options) error {
 	return ms.connectFunc(opts)
 }
 func (ms mockSocket) Close() {
@@ -90,26 +91,26 @@ func (mm mockMessenger) ChangeSocketFd(n int) {
 func Test_connect(t *testing.T) {
 	testData := []struct{
 		name string
-		opts *models.Options
+		opts *options.Options
 		expectedErr error
 		mockPoll mockPoller
 		mockSock mockSocket
 	}{
 		{
 			name: "success",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 			},
 			expectedErr: nil,
 			mockSock: mockSocket{
-				connectFunc: func(o *models.Options) error {
+				connectFunc: func(o *options.Options) error {
 					return nil
 				},
 			},
 		},
 		{
 			name: "success with poll",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				PollingTimeout: time.Millisecond*500,
 			},
@@ -127,14 +128,14 @@ func Test_connect(t *testing.T) {
 				getSocketFdFunc: func() int {
 					return 2
 				},
-				connectFunc: func(o *models.Options) error {
+				connectFunc: func(o *options.Options) error {
 					return fmt.Errorf("test err: %w", syscall.EAGAIN)
 				},
 			},
 		},
 		{
 			name: "fail ErrOperationRetriesFailed",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				PollingTimeout: time.Millisecond*500,
 			},
@@ -148,19 +149,19 @@ func Test_connect(t *testing.T) {
 				getSocketFdFunc: func() int {
 					return 2
 				},
-				connectFunc: func(o *models.Options) error {
+				connectFunc: func(o *options.Options) error {
 					return fmt.Errorf("test err: %w", syscall.EAGAIN)
 				},
 			},
 		},
 		{
 			name: "fail ErrSocketNoAccess",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 			},
 			expectedErr: models.ErrSocketNoAccess,
 			mockSock: mockSocket{
-				connectFunc: func(o *models.Options) error {
+				connectFunc: func(o *options.Options) error {
 					return models.ErrSocketNoAccess
 				},
 			},
@@ -184,14 +185,14 @@ func Test_connect(t *testing.T) {
 func Test_poll(t *testing.T) {
 	testData := []struct{
 		name string
-		opts *models.Options
+		opts *options.Options
 		expectedErr error
 		mockPoll mockPoller
 		mockSock mockSocket
 	}{
 		{
 			name: "success",
-			opts: &models.Options{
+			opts: &options.Options{
 				PollingTimeout: time.Millisecond*500,
 			},
 			expectedErr: nil,
@@ -212,7 +213,7 @@ func Test_poll(t *testing.T) {
 		},
 		{
 			name: "fail sync timeout",
-			opts: &models.Options{
+			opts: &options.Options{
 				PollingTimeout: time.Millisecond*500,
 			},
 			expectedErr: models.ErrPollTimeout,
@@ -229,7 +230,7 @@ func Test_poll(t *testing.T) {
 		},
 		{
 			name: "fail async timeout",
-			opts: &models.Options{
+			opts: &options.Options{
 				PollingTimeout: time.Millisecond*500,
 			},
 			expectedErr: models.ErrPollTimeout,
@@ -247,7 +248,7 @@ func Test_poll(t *testing.T) {
 		},
 		{
 			name: "fail sync ErrConnectionClosed",
-			opts: &models.Options{
+			opts: &options.Options{
 				PollingTimeout: time.Millisecond*500,
 			},
 			expectedErr: models.ErrConnectionClosed,
@@ -264,7 +265,7 @@ func Test_poll(t *testing.T) {
 		},
 		{
 			name: "fail async ErrConnectionClosed",
-			opts: &models.Options{
+			opts: &options.Options{
 				PollingTimeout: time.Millisecond*500,
 			},
 			expectedErr: models.ErrConnectionClosed,
@@ -305,7 +306,7 @@ func TestProcess(t *testing.T) {
 	
 	testData := []struct{
 		name string
-		opts *models.Options
+		opts *options.Options
 		expectedErr error
 		setUpFunc func()
 		cleanUpFunc func()
@@ -318,7 +319,7 @@ func TestProcess(t *testing.T) {
 	}{
 		{
 			name: "success",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -347,7 +348,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "success bufs WritePos",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -392,7 +393,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "success with send buf 2x increase",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				SendBufMaxLen: 10 * 1024,
@@ -434,7 +435,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "success with send buf max increase",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				SendBufMaxLen: 1900,
@@ -476,7 +477,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "fail ErrSendBufTooShort",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				SendBufMaxLen: 1024,
@@ -513,7 +514,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "fail ErrConnectionCmdInProcess",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -548,7 +549,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "fail on send with bufs clear",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -579,7 +580,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "fail on decode with bufs clear",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -663,7 +664,7 @@ func Test_send(t *testing.T) {
 	
 	testData := []struct{
 		name string
-		opts *models.Options
+		opts *options.Options
 		expectedErr error
 		mockPoll mockPoller
 		mockSock mockSocket
@@ -671,7 +672,7 @@ func Test_send(t *testing.T) {
 	}{
 		{
 			name: "success short",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -688,7 +689,7 @@ func Test_send(t *testing.T) {
 		},
 		{
 			name: "success full",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -721,7 +722,7 @@ func Test_send(t *testing.T) {
 		},
 		{
 			name: "success with trunc",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -742,7 +743,7 @@ func Test_send(t *testing.T) {
 		},
 		{
 			name: "success with reconnect",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -780,7 +781,7 @@ func Test_send(t *testing.T) {
 		},
 		{
 			name: "fail timeout while sending",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -811,7 +812,7 @@ func Test_send(t *testing.T) {
 		},
 		{
 			name: "fail timeout after sending",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -830,7 +831,7 @@ func Test_send(t *testing.T) {
 		},
 		{
 			name: "fail ErrOperationRetriesFailed",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -891,7 +892,7 @@ func Test_receive(t *testing.T) {
 	
 	testData := []struct{
 		name string
-		opts *models.Options
+		opts *options.Options
 		expectedErr error
 		checkFunc func()
 		mockPoll mockPoller
@@ -900,7 +901,7 @@ func Test_receive(t *testing.T) {
 	}{
 		{
 			name: "success short",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -917,7 +918,7 @@ func Test_receive(t *testing.T) {
 		},
 		{
 			name: "success long",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -953,7 +954,7 @@ func Test_receive(t *testing.T) {
 		},
 		{
 			name: "success after retry",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -994,7 +995,7 @@ func Test_receive(t *testing.T) {
 		},
 		{
 			name: "success with recv buf 2x increase",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -1024,7 +1025,7 @@ func Test_receive(t *testing.T) {
 		},
 		{
 			name: "success with recv buf max increase",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -1054,7 +1055,7 @@ func Test_receive(t *testing.T) {
 		},
 		{
 			name: "fail ErrRecvMsgTooBig",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -1093,7 +1094,7 @@ func Test_receive(t *testing.T) {
 		},
 		{
 			name: "fail timeout while receiving",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -1121,7 +1122,7 @@ func Test_receive(t *testing.T) {
 		},
 		{
 			name: "fail timeout after receiving",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -1138,7 +1139,7 @@ func Test_receive(t *testing.T) {
 		},
 		{
 			name: "fail ErrOperationRetriesFailed",
-			opts: &models.Options{
+			opts: &options.Options{
 				RetryAmount: 3,
 				SendBufMinLen: 1024,
 				ReceiveBufMinLen: 1024,
@@ -1199,7 +1200,7 @@ func Test_receive(t *testing.T) {
 }
 
 func TestProcessConcurrently(t *testing.T) {
-	testConnection.opts = &models.Options{
+	testConnection.opts = &options.Options{
 		RetryAmount: 3,
 		SendBufMinLen: 1024,
 		ReceiveBufMinLen: 1024,

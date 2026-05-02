@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/options"
 )
 
 // Connector является интерфейсом для внешнего использования
@@ -26,7 +27,7 @@ type poller interface {
 
 type socketer interface {
 	GetSocketFd() int
-	Connect(*models.Options) error
+	Connect(*options.Options) error
 	Close()
 }
 
@@ -47,7 +48,7 @@ type messenger interface {
 // Connection является одиночным соединением и координирует всю работу от кодирования в RESP
 // до возврата результата
 type Connection struct {
-	opts *models.Options
+	opts *options.Options
 	mu sync.Mutex
 
 	// фабрика для создания нужных объектов, 
@@ -68,7 +69,7 @@ type Connection struct {
 	processing bool
 }
 
-func NewConnector(opts *models.Options) (Connector, error) {
+func NewConnector(opts *options.Options) (Connector, error) {
 	var f Factory
 	
 	// создаем сокет

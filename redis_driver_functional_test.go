@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/rseleznev/redis_driver/internal/connection"
-	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/options"
 )
 
 var (
 	testClient = &Client{}
-	opts = &models.Options{
+	opts = &options.Options{
 		RedisIp: [4]byte{127, 0, 0, 1},
 		RedisPort: 6379,
 
@@ -27,7 +27,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	initOptions(opts)
+	options.InitOptions(opts)
 	
 	conn, err := connection.NewConnector(opts)
 	if err != nil {

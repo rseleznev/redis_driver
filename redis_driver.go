@@ -7,18 +7,19 @@ import (
 
 	"github.com/rseleznev/redis_driver/internal/connection"
 	"github.com/rseleznev/redis_driver/internal/models"
+	"github.com/rseleznev/redis_driver/options"
 )
 
 type Client struct {
-	opts *models.Options
+	opts *options.Options
 
 	// основной механизм отправки команд и получения результатов
 	connection.Connector
 }
 
-func NewClient(opts *models.Options) (*Client, error) {
+func NewClient(opts *options.Options) (*Client, error) {
 	// инициализируем опции
-	initOptions(opts)
+	options.InitOptions(opts)
 
 	// создаем коннектор
 	c, err := connection.NewConnector(opts)
