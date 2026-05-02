@@ -146,3 +146,7 @@ func (c *Client) GetValueByKey(ctx context.Context, key string) ([]byte, error) 
 
 	return result, nil
 }
+
+func (c *Client) Close() {
+	c.Connector.Close()
+}
