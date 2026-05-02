@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,17 +29,51 @@ var opts = &models.Options{
 
 	PollingTimeout: time.Millisecond*50,
 }
-var conn Connector
-var connErr error
+var conn *Connection
+var commandTimeout time.Duration = time.Millisecond*100
 
 
 func TestMain(m *testing.M) {
-	conn, connErr = NewConnector(opts)
-	if connErr != nil {
-		panic(connErr)
+	// Создаем Connection
+	var f Factory
+	
+	// создаем сокет
+	s, err := f.NewSocket(opts)
+	if err != nil {
+		panic(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	// создаем поллер
+	p, err := f.NewPoller()
+	if err != nil {
+		panic(err)
+	}
+
+	conn = &Connection{
+		opts: opts,
+		mu: sync.Mutex{},
+		factory: f,
+		poller: p,
+		socket: s,
+
+		sendBuf: &models.SendBuf{
+			Buf: make([]byte, opts.SendBufMinLen),
+		},
+		recvBuf: &models.RecvBuf{
+			Buf: make([]byte, opts.ReceiveBufMinLen),
+		},
+	}
+
+	// подключаем сокет
+	err = conn.connect()
+	if err != nil {
+		panic(err)
+	}
+
+	conn.coder = f.NewCoder()
+	conn.msgr = f.NewMessenger(conn.socket.GetSocketFd())
+
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	
 	r, err := conn.Process(ctx, []any{"HELLO", "3"})
 	if err != nil {
@@ -51,17 +86,17 @@ func TestMain(m *testing.M) {
 		panic("ошибка утверждения типа")
 	}
 
-	fmt.Println("Вывод команды HELLO 3:", mapResult)
+	fmt.Println("Вывод команды HELLO 3: ", mapResult)
 
 	code := m.Run()
 
-	conn.Close()
+	// conn.Close()
 	os.Exit(code)
 }
 
 func TestShortString(t *testing.T) {
 	// Записываем ключ
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	
 	r, err := conn.Process(ctx, []any{"SET", "shortString", "short string value", "PX", "50000"})
 	if err != nil {
@@ -78,10 +113,10 @@ func TestShortString(t *testing.T) {
 		t.Error("Некорректный результат")
 	}
 
-	t.Log("Вывод команды TestShortString.SET:", string(res))
+	t.Log("Вывод команды TestShortString.SET: ", string(res))
 
 	// Читаем ключ
-	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, cancel = context.WithTimeout(context.Background(), commandTimeout)
 
 	r, err = conn.Process(ctx, []any{"GET", "shortString"})
 	if err != nil {
@@ -98,14 +133,14 @@ func TestShortString(t *testing.T) {
 		t.Error("Некорректный результат")
 	}
 
-	t.Log("Вывод команды TestShortString.GET:", string(res))
+	t.Log("Вывод команды TestShortString.GET: ", string(res))
 }
 
 func TestShortBytes(t *testing.T) {
 	value := []byte{'B', 'Y', 'T', 'E', 'S'}
 	
 	// Записываем ключ
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	
 	r, err := conn.Process(ctx, []any{"SET", "shortBytes", value, "PX", "50000"})
 	if err != nil {
@@ -122,11 +157,11 @@ func TestShortBytes(t *testing.T) {
 		t.Error("Некорректный результат")
 	}
 
-	t.Log("Вывод команды TestShortBytes.SET:", string(res))
+	t.Log("Вывод команды TestShortBytes.SET: ", string(res))
 
 
 	// Читаем ключ
-	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, cancel = context.WithTimeout(context.Background(), commandTimeout)
 
 	r, err = conn.Process(ctx, []any{"GET", "shortBytes"})
 	if err != nil {
@@ -143,15 +178,14 @@ func TestShortBytes(t *testing.T) {
 		t.Errorf("Ожидаемый результат %s, получено %s", value, res)
 	}
 
-	t.Log("Вывод команды TestShortBytes.GET:", string(res))
+	t.Log("Вывод команды TestShortBytes.GET: ", string(res))
 }
 
 func TestLongValue(t *testing.T) {
 	longValue, _ := os.ReadFile("./../../docs/testing/response.json")
-	t.Logf("Длина исходной строки: %d \n", len(longValue))
 	
 	// Записываем ключ
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	
 	r, err := conn.Process(ctx, []any{"SET", "longValue", longValue, "PX", "50000"})
 	if err != nil {
@@ -168,11 +202,11 @@ func TestLongValue(t *testing.T) {
 		t.Error("Некорректный результат")
 	}
 
-	t.Log("Вывод команды TestLongValue.SET:", string(res))
+	t.Log("Вывод команды TestLongValue.SET: ", string(res))
 
 
 	// Читаем ключ
-	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, cancel = context.WithTimeout(context.Background(), commandTimeout)
 
 	r, err = conn.Process(ctx, []any{"GET", "longValue"})
 	if err != nil {
@@ -184,11 +218,170 @@ func TestLongValue(t *testing.T) {
 	if !ok {
 		t.Error("Ошибка утверждения типа")
 	}
-	t.Logf("Длина полученной строки: %d \n", len(res))
 
 	if slices.Compare(res, longValue) != 0 {
 		t.Errorf("Ожидаемый результат %s, получено %s", longValue, res)
 	}
 
-	t.Log("Вывод команды TestLongValue.GET:", string(res))
+	t.Log("Вывод команды TestLongValue.GET: ", string(res))
+}
+
+func TestWithReconnect(t *testing.T) {
+	conn.coder = mockCoder{ // mockCoder из файла connection_test.go
+		encodeFunc: func(sb *models.SendBuf, a []any) error {
+			data := []byte{
+				'*', '1', '\r', '\n',
+				'%', '1', '\r', '\n',
+				'$', '4', '\r', '\n',
+				'T', 'E', 'S', 'T', '\r', '\n',
+				'$', '2', '\r', '\n',
+				'O', 'K', '\r', '\n',
+			}
+
+			n := copy(sb.Buf, data)
+			sb.WritePos = n
+
+			return nil
+		},
+		decodeFunc: func(b []byte) (any, error) {
+			var idx int = 1
+			errValue := make([]byte, 0, 50)
+
+			for {
+				if b[idx] == '\r' {
+					idx++
+
+					if b[idx] == '\n' {
+						break
+					}
+				}
+
+				errValue = append(errValue, b[idx])
+				idx++
+			}
+			return nil, fmt.Errorf("%s: %w", errValue, models.ErrRedisException)
+		},
+	}
+
+
+	// Отправляем мапу намеренно, чтобы получить ошибку и сброс соединения
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	
+	_, err := conn.Process(ctx, []any{"wrongDataType"})
+	if err != nil {
+		t.Logf("Ошибка протокола (ожидаемая): %s", err)
+	}
+	cancel()
+
+	// Отправляем нормальную команду, которая должна быть обработана уже другим сокетом
+	conn.coder = conn.factory.NewCoder()
+	ctx, cancel = context.WithTimeout(context.Background(), commandTimeout)
+	
+	r, err := conn.Process(ctx, []any{"HELLO", "3"})
+	if err != nil {
+		t.Error(err)
+	}
+	cancel()
+
+	res, ok := r.(map[string]string)
+	if !ok {
+		t.Error("Ошибка утверждения типа")
+	}
+
+	t.Log("Вывод команды TestWithReconnect.HELLO 3: ", res)
+}
+
+func TestMultipleStreams(t *testing.T) {
+	var wg sync.WaitGroup
+
+	// первая горутина вызывает команду PING
+	wg.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+
+		var r any
+		var err error
+	
+		for ctx.Err() == nil {
+			r, err = conn.Process(ctx, []any{"PING"})
+			if err != nil {
+				if err == models.ErrConnectionCmdInProcess {
+					t.Log("Соединение занято")
+					continue
+				}
+				t.Error(err)
+			}
+			break
+		}
+		cancel()
+
+		res, ok := r.([]byte)
+		if !ok {
+			t.Error("Ошибка утверждения типа")
+		}
+
+		t.Log("Вывод команды TestWithReconnect.PING: ", string(res))
+	})
+
+	// вторая горутина хочет получить значение по ключу multiple_streams_test
+	// (которое будет указано другой горутиной)
+	wg.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+
+		var r any
+		var err error
+	
+		for ctx.Err() == nil {
+			r, err = conn.Process(ctx, []any{"GET", "multiple_streams_test"})
+			if err != nil {
+				if err == models.ErrConnectionCmdInProcess {
+					t.Log("Соединение занято")
+					continue
+				}
+				if err == models.ErrNoValue {
+					t.Log("Еще нет значения")
+					continue
+				}
+				t.Error(err)
+			}
+			break
+		}
+		cancel()
+
+		res, ok := r.([]byte)
+		if !ok {
+			t.Error("Ошибка утверждения типа")
+		}
+
+		t.Log("Вывод команды TestWithReconnect.GET: ", string(res))
+	})
+
+	// третья горутина указывает значение ключа multiple_streams_test
+	wg.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+
+		var r any
+		var err error
+	
+		for ctx.Err() == nil {
+			r, err = conn.Process(ctx, []any{"SET", "multiple_streams_test" , "testValue", "PX", "1000"})
+			if err != nil {
+				if err == models.ErrConnectionCmdInProcess {
+					t.Log("Соединение занято")
+					continue
+				}
+				t.Error(err)
+			}
+			break
+		}
+		cancel()
+
+		res, ok := r.([]byte)
+		if !ok {
+			t.Error("Ошибка утверждения типа")
+		}
+
+		t.Log("Вывод команды TestWithReconnect.SET: ", string(res))
+	})
+
+	wg.Wait()
 }
