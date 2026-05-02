@@ -95,6 +95,12 @@ func (t *Translator) parseBulkString(idx int) (int, any) {
 		return idx, nil
 	}
 	idx, strLen = t.parsePartLen(idx)
+	
+	// в RESP2 nil приходит как строка с длиной -1
+	if strLen == -1 {
+		t.setDecodingErr(models.ErrNoValue)
+		return idx, nil
+	}
 	str := make([]byte, 0, strLen)
 	idx++
 
