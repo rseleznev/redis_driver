@@ -2,7 +2,6 @@ package transmitter
 
 import (
 	"errors"
-	"fmt"
 	"syscall"
 
 	"github.com/rseleznev/redis_driver/internal/models"
@@ -111,7 +110,7 @@ func (t *Transmitter) Send(data []byte) (int, error) {
 		}
 
 		
-		return n, fmt.Errorf("sending err: %w", err)
+		return n, err
 	}
 	if n != len(data) {
 		return n, models.ErrSendMsgTrunc
@@ -175,7 +174,7 @@ func (t *Transmitter) Receive(buf *models.RecvBuf) error {
 			return models.ErrSocketBadFD
 		}
 		
-		return fmt.Errorf("receiving err: %w", err)
+		return err
 	}
 
 	// Проверяем флаги ядра
