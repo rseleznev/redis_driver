@@ -6,13 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rseleznev/redis_driver/internal/connection"
 	"github.com/rseleznev/redis_driver/options"
 )
 
 var (
 	testClient = &Client{}
-	opts = &options.Options{
+	commandTimeout time.Duration = time.Millisecond*100
+)
+
+func TestMain(m *testing.M) {
+	client, err := NewClient(&options.Options{
 		RedisIp: [4]byte{127, 0, 0, 1},
 		RedisPort: 6379,
 
@@ -22,28 +25,12 @@ var (
 		SendBufMaxLen: 1024,
 		ReceiveBufMinLen: 256,
 		ReceiveBufMaxLen: 1024,
-	}
-	commandTimeout time.Duration = time.Millisecond*100
-)
-
-func TestMain(m *testing.M) {
-	opts.InitOptions()
-	
-	conn, err := connection.NewConnector(opts)
+	})
 	if err != nil {
 		panic(err)
 	}
 
-	testClient.opts = opts
-	testClient.Connector = conn
-
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
-
-	_, err = testClient.Hello3(ctx)
-	if err != nil {
-		panic(err)
-	}
-	cancel()
+	testClient = client
 
 	code := m.Run()
 	testClient.Close()
