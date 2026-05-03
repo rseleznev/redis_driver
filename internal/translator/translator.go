@@ -21,6 +21,10 @@ func (t *Translator) sendBufLen() int {
 	return len(t.sendBuf.Buf)
 }
 
+func (t *Translator) sendBufFreeSpaceLen() int {
+	return t.sendBufLen() - t.sendBuf.WritePos
+}
+
 func (t *Translator) setDecodingData(d []byte) {
 	t.decodingData = d
 }

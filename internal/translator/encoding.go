@@ -72,7 +72,7 @@ func (t *Translator) writeString(cmdPart any) error {
 	valueLenBytes := []byte(valueLenStr)
 	valueLen := 1 + len(valueLenBytes) + len(valueBytes) + 4
 
-	if valueLen > t.sendBufLen() {
+	if valueLen > t.sendBufFreeSpaceLen() {
 		return models.ErrSendBufTooShort
 	}
 
