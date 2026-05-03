@@ -1,6 +1,7 @@
 package translator
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/rseleznev/redis_driver/internal/models"
@@ -27,9 +28,10 @@ func (t *Translator) Encode(buf *models.SendBuf, params []any) error {
 
 func (t *Translator) writeArr(paramsLen int) error {
 	paramsLenStr := strconv.Itoa(paramsLen)
-	paramsLenBytes := []byte(paramsLenStr)
+	// paramsLenBytes := []byte(paramsLenStr)
+	paramsLenInBytes := int(math.Log10(float64(paramsLen)))+1
 	
-	arrLen := 1 + len(paramsLenBytes) + 2
+	arrLen := 1 + paramsLenInBytes + 2
 
 	if arrLen >= t.sendBufLen() {
 		return models.ErrSendBufTooShort
@@ -41,8 +43,8 @@ func (t *Translator) writeArr(paramsLen int) error {
 	// 	t.writeByte(v)
 	// }
 
-	for i:=0; i<len(paramsLenBytes); i++ {
-		t.writeByte(paramsLenBytes[i])
+	for i:=0; i<len(paramsLenStr); i++ {
+		t.writeByte(paramsLenStr[i])
 	}
 
 	t.writeByte('\r')

@@ -79,7 +79,7 @@ func TestEncode(t *testing.T) {
 				WritePos: 0,
 				Buf: make([]byte, 2),
 			},
-			params: []any{},
+			params: []any{"PING"},
 			expectedErr: models.ErrSendBufTooShort,
 			expectedResult: []byte{},
 		},
