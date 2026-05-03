@@ -19,7 +19,7 @@ type Client struct {
 
 func NewClient(opts *options.Options) (*Client, error) {
 	// инициализируем опции
-	options.InitOptions(opts)
+	opts.InitOptions()
 
 	// создаем коннектор
 	c, err := connection.NewConnector(opts)

@@ -27,7 +27,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	options.InitOptions(opts)
+	opts.InitOptions()
 	
 	conn, err := connection.NewConnector(opts)
 	if err != nil {

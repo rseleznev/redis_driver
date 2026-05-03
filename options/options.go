@@ -68,50 +68,50 @@ type Options struct {
 }
 
 // InitOptions инициализирует параметры соединения
-func InitOptions(opts *Options) {
-	if opts.RetryAmount <= 0 {
-		opts.RetryAmount = 3
+func (o *Options) InitOptions() {
+	if o.RetryAmount <= 0 {
+		o.RetryAmount = 3
 	}
-	opts.RetryAmount += 1 // + первая попытка, которая не является ретраем
+	o.RetryAmount += 1 // + первая попытка, которая не является ретраем
 
-	if opts.SetKeepAlive {
-		if opts.KeepAliveIdle <= 0 {
-			opts.KeepAliveIdle = 300
+	if o.SetKeepAlive {
+		if o.KeepAliveIdle <= 0 {
+			o.KeepAliveIdle = 300
 		}
-		if opts.KeepAliveInterval <= 0 {
-			opts.KeepAliveInterval = 60
+		if o.KeepAliveInterval <= 0 {
+			o.KeepAliveInterval = 60
 		}
-		if opts.KeepAliveCheckAmount <= 0 {
-			opts.KeepAliveCheckAmount = 5
+		if o.KeepAliveCheckAmount <= 0 {
+			o.KeepAliveCheckAmount = 5
 		}
 	}
 
 	// буфер отправки
-	if opts.SendBufMinLen <= 0 {
-		opts.SendBufMinLen = 8 * 1024
+	if o.SendBufMinLen <= 0 {
+		o.SendBufMinLen = 8 * 1024
 	}
-	if opts.SendBufMaxLen <= 0 {
-		opts.SendBufMaxLen = 100 * 1024 * 1024
+	if o.SendBufMaxLen <= 0 {
+		o.SendBufMaxLen = 100 * 1024 * 1024
 	}
-	if opts.SendBufMinLen > opts.SendBufMaxLen {
-		opts.SendBufMinLen = 8 * 1024
-		opts.SendBufMaxLen = 100 * 1024 * 1024
+	if o.SendBufMinLen > o.SendBufMaxLen {
+		o.SendBufMinLen = 8 * 1024
+		o.SendBufMaxLen = 100 * 1024 * 1024
 	}
 
 	// буфер получения
-	if opts.ReceiveBufMinLen <= 0 {
-		opts.ReceiveBufMinLen = 8 * 1024
+	if o.ReceiveBufMinLen <= 0 {
+		o.ReceiveBufMinLen = 8 * 1024
 	}
-	if opts.ReceiveBufMaxLen <= 0 {
-		opts.ReceiveBufMaxLen = 100 * 1024 * 1024
+	if o.ReceiveBufMaxLen <= 0 {
+		o.ReceiveBufMaxLen = 100 * 1024 * 1024
 	}
-	if opts.ReceiveBufMinLen > opts.ReceiveBufMaxLen {
-		opts.ReceiveBufMinLen = 8 * 1024
-		opts.ReceiveBufMaxLen = 100 * 1024 * 1024
+	if o.ReceiveBufMinLen > o.ReceiveBufMaxLen {
+		o.ReceiveBufMinLen = 8 * 1024
+		o.ReceiveBufMaxLen = 100 * 1024 * 1024
 	}
 
 
-	if opts.PollingTimeout <= 0 {
-		opts.PollingTimeout = time.Millisecond*50
+	if o.PollingTimeout <= 0 {
+		o.PollingTimeout = time.Millisecond*50
 	}
 }
