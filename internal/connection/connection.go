@@ -149,11 +149,9 @@ func (c *Connection) connect() error {
 
 // poll поллит нужное событие, возвращает результат поллинга:
 //
-// - nil при событии connect означает, что соединение установлено
-//
-// - nil при событии income означает, что есть входящие данные
-//
-// - nil при событии outcome означает, что исходящие данные отправлены
+// 	- nil при событии connect означает, что соединение установлено
+// 	- nil при событии income означает, что есть входящие данные
+// 	- nil при событии outcome означает, что исходящие данные отправлены
 func (c *Connection) poll(eventType string) error {
 	pUnit := models.PollingUnit{
 		SocketFd: c.socket.GetSocketFd(),
