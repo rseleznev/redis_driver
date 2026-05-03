@@ -37,8 +37,12 @@ func (t *Translator) writeArr(paramsLen int) error {
 
 	t.writeByte('*')
 
-	for _, v := range paramsLenBytes {
-		t.writeByte(v)
+	// for _, v := range paramsLenBytes {
+	// 	t.writeByte(v)
+	// }
+
+	for i:=0; i<len(paramsLenBytes); i++ {
+		t.writeByte(paramsLenBytes[i])
 	}
 
 	t.writeByte('\r')
@@ -72,15 +76,23 @@ func (t *Translator) writeString(cmdPart any) error {
 
 	t.writeByte('$')
 
-	for _, v := range valueLenBytes {
-		t.writeByte(v)
+	// for _, v := range valueLenBytes {
+	// 	t.writeByte(v)
+	// }
+
+	for i:=0; i<len(valueLenBytes); i++ {
+		t.writeByte(valueLenBytes[i])
 	}
 
 	t.writeByte('\r')
 	t.writeByte('\n')
 
-	for _, v := range valueBytes {
-		t.writeByte(v)
+	// for _, v := range valueBytes {
+	// 	t.writeByte(v)
+	// }
+
+	for i:=0; i<len(valueBytes); i++ {
+		t.writeByte(valueBytes[i])
 	}
 
 	t.writeByte('\r')
