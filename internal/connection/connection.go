@@ -3,6 +3,7 @@ package connection
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -197,6 +198,7 @@ func (c *Connection) poll(eventType string) error {
 
 				return models.ErrPollTimeout	
 			}
+			runtime.Gosched()
 			continue
 
 		}
