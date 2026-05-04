@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/rseleznev/redis_driver/internal/models"
 	"github.com/rseleznev/redis_driver/options"
@@ -160,11 +161,10 @@ func (c *Connection) poll(eventType string) error {
 	}
 
 	var err error
-	ctx, cancel := c.newContextWithTimeout()
-	defer cancel()
+	deadline := time.Now().Add(c.opts.PollingTimeout)
 
 	for {
-		if ctx.Err() != nil {
+		if time.Now().After(deadline) {
 			return models.ErrPollTimeout
 		}
 		
@@ -184,24 +184,26 @@ func (c *Connection) poll(eventType string) error {
 	}
 
 	// блокируемся на чтении результата поллинга
-	select {
-	case err = <-pUnit.ResultChan:
-		if err != nil {
-			return c.processPollError(err)
+	for {
+		select {
+		case err = <-pUnit.ResultChan:
+			if err != nil {
+				return c.processPollError(err)
+			}
+
+		default:
+			if time.Now().After(deadline) {
+				c.poller.DeleteSocketFromPolling(c.socket.GetSocketFd())
+
+				return models.ErrPollTimeout	
+			}
+			continue
+
 		}
-
-	case <-ctx.Done():
-		c.poller.DeleteSocketFromPolling(c.socket.GetSocketFd())
-
-		return models.ErrPollTimeout
-
+		break
 	}
 
 	return nil
-}
-
-func (c *Connection) newContextWithTimeout() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), c.opts.PollingTimeout)
 }
 
 // processPollError обрабатывает ошибки poller'а и в случаях, когда что-то можно сделать
