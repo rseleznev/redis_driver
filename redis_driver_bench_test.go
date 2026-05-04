@@ -15,7 +15,8 @@ var (
 	err error
 )
 
-func BenchmarkHello(b *testing.B) {
+
+func BenchmarkSetShortValue(b *testing.B) {
 	ctx := context.Background()
 	client, err = NewClient(&options.Options{
 		RedisIp: [4]byte{127, 0, 0, 1},
@@ -25,23 +26,6 @@ func BenchmarkHello(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-
-	var result map[string]string
-
-	for b.Loop() {
-		r, err := client.Hello3(ctx)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		result = r
-	}
-
-	b.Log(result)
-}
-
-func BenchmarkSetShortValue(b *testing.B) {
-	ctx := context.Background()
 
 	for b.Loop() {
 		err = client.SetValueForKey(ctx, "test1", "value1", time.Minute)
