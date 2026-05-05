@@ -166,7 +166,7 @@ func (t *Translator) parseMapKeyAndValue(idx int) (int, string, string) {
 		key = string(res)
 
 	default:
-		t.setDecodingErr(models.ErrDataAssert)
+		t.setDecodingErr(models.ErrTypeAssert)
 
 	}
 	idx++

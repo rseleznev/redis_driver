@@ -44,7 +44,7 @@ var (
 	ErrSpaceAddress = errors.New("redis_driver: an invalid user space address") // EFAULT
 	ErrBadValue = errors.New("redis_driver: invalid argument passed") // EINVAL
 	// ErrRedisProtocol = errors.New("redis_driver: redis protocol error")
-	ErrDataAssert = errors.New("redis_driver: data assertion error")
+	ErrTypeAssert = errors.New("redis_driver: type assertion error")
 	ErrRedisException = errors.New("redis_driver: redis server exception")
 	ErrOperationRetriesFailed = errors.New("redis_driver: all operation retries failed")
 

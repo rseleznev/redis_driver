@@ -10,6 +10,11 @@ import (
 	"github.com/rseleznev/redis_driver/options"
 )
 
+var (
+	ErrTypeAssert = models.ErrTypeAssert
+	ErrNoValue = models.ErrNoValue
+)
+
 type Client struct {
 	opts *options.Options
 
@@ -62,7 +67,7 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 
 	result, ok := r.([]byte)
 	if !ok {
-		return "", models.ErrDataAssert
+		return "", ErrTypeAssert
 	}
 
 	return string(result), nil
@@ -90,7 +95,7 @@ func (c *Client) Hello3(ctx context.Context) (map[string]string, error) {
 
 	result, ok := r.(map[string]string)
 	if !ok {
-		return nil, models.ErrDataAssert
+		return nil, ErrTypeAssert
 	}
 
 	return result, nil
@@ -142,7 +147,7 @@ func (c *Client) GetValueByKey(ctx context.Context, key string) ([]byte, error) 
 
 	result, ok := r.([]byte)
 	if !ok {
-		return nil, models.ErrDataAssert
+		return nil, ErrTypeAssert
 	}
 
 	return result, nil
