@@ -14,7 +14,7 @@ type Client struct {
 	opts *options.Options
 
 	// основной механизм отправки команд и получения результатов
-	connection.Connector
+	connector connection.Connector
 }
 
 func NewClient(opts *options.Options) (*Client, error) {
@@ -29,7 +29,7 @@ func NewClient(opts *options.Options) (*Client, error) {
 
 	client := &Client{
 		opts: opts,
-		Connector: c,
+		connector: c,
 	}
 
 	// включаем RESP3
@@ -50,7 +50,7 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 	var err error
 
 	for ctx.Err() == nil {
-		r, err = c.Process(ctx, args)
+		r, err = c.connector.Process(ctx, args)
 		if err != nil {
 			if err == models.ErrConnectionCmdInProcess {
 				continue
@@ -78,7 +78,7 @@ func (c *Client) Hello3(ctx context.Context) (map[string]string, error) {
 	var err error
 
 	for ctx.Err() == nil {
-		r, err = c.Process(ctx, args)
+		r, err = c.connector.Process(ctx, args)
 		if err != nil {
 			if err == models.ErrConnectionCmdInProcess {
 				continue
@@ -107,7 +107,7 @@ func (c *Client) SetValueForKey(ctx context.Context, key string, value any, dura
 	}
 
 	for ctx.Err() == nil {
-		_, err := c.Process(ctx, args) // игнорируем строку "OK"
+		_, err := c.connector.Process(ctx, args) // игнорируем строку "OK"
 		if err != nil {
 			if err == models.ErrConnectionCmdInProcess {
 				continue
@@ -130,7 +130,7 @@ func (c *Client) GetValueByKey(ctx context.Context, key string) ([]byte, error) 
 	var err error
 
 	for ctx.Err() == nil {
-		r, err = c.Process(ctx, args)
+		r, err = c.connector.Process(ctx, args)
 		if err != nil {
 			if err == models.ErrConnectionCmdInProcess {
 				continue
@@ -149,5 +149,5 @@ func (c *Client) GetValueByKey(ctx context.Context, key string) ([]byte, error) 
 }
 
 func (c *Client) Close() {
-	c.Connector.Close()
+	c.connector.Close()
 }
