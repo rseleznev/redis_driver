@@ -19,6 +19,40 @@
 - Нет авторизации и выбора конкретной БД redis
 - Не поддерживается работа с кластером
 - Буферы отправки/получения могут динамически увеличиваться до указанных максимумов, но на текущий момент они никогда не уменьшаются
+- Адрес redis-сервера указывается только через IPv4
+
+## Использование
+
+```go
+    // создание клиента
+    redisClient, err = redis_driver.NewClient(&options.Options{
+		RedisIp: [4]byte{127, 0, 0, 1},
+		RedisPort: 6379,
+	})
+    if err != nil {
+        panic(err)
+    }
+
+    // проверка соединения
+    pong, err := redisClient.Ping(ctx)
+	if err != nil {
+		panic(err)
+	}
+    fmt.Println(pong) // PONG
+
+    // сохранение значения
+    err = redisClient.SetValueForKey(ctx, "your_key", "your_value", time.Second*5)
+	if err != nil {
+		panic(err)
+	}
+
+    // получение значения
+    result, err := redisClient.GetValueByKey(ctx, "your_key")
+	if err != nil {
+		panic(err)
+	}
+    fmt.Println(string(result)) // your_value
+```
 
 ## Сравнение с оригинальным [go-redis](https://github.com/redis/go-redis):
 
@@ -26,9 +60,16 @@
 
 (go-redis указан как Original)
 
+## Архитектура
+
+В ходе работы над проектом возникла проблема архитектуры. В итоге после нескольких итераций полного переделывания проекта, от отсутствия архитектуры пришел к подобию чистой архитектуры
+
+<img src="./docs/images/redir_driver_arch_scheme.png">
+
 ## Планы на будущее
 
 * оптимизация аллокаций (в частности парсинг)
+* динамическое изменение размеров буферов в зависимости от нагрузки
 * TLS
 * пул соединений
 * Pub/sub
