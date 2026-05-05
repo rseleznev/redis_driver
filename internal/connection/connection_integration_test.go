@@ -18,7 +18,6 @@ var opts = &options.Options{
 	RedisPort: 6379,
 	RetryAmount: 3,
 
-	SetKeepAlive: true,
 	KeepAliveIdle: 300,
 	KeepAliveInterval: 60,
 	KeepAliveCheckAmount: 5,

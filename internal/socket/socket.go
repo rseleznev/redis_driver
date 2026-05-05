@@ -50,7 +50,7 @@ func NewSocket(opts *options.Options) (Socket, error) {
 		return 0, fmt.Errorf("socket creation err: %w", err)
 	}
 
-	if opts.SetKeepAlive {
+	if !opts.DisableKeepAlive {
 		// Включаем keep alive
 		syscall.SetsockoptInt(socketFd, syscall.SOL_SOCKET, syscall.SO_KEEPALIVE, 1)
 

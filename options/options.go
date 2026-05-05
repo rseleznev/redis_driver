@@ -24,8 +24,9 @@ type Options struct {
 	// ------------------------------------------------
 	// Keep-alive
 	//
-	// Нужно ли включить Keep-alive
-	SetKeepAlive bool
+	// Нужно ли выключить Keep-alive
+	// По умолчанию false, то есть Keep-alive включен
+	DisableKeepAlive bool
 	// Кол-во секунд бездействия, чтобы началась проверка соединения
 	// По умолчанию 300 секунд (5 минут)
 	KeepAliveIdle int
@@ -74,16 +75,14 @@ func (o *Options) InitOptions() {
 	}
 	o.RetryAmount += 1 // + первая попытка, которая не является ретраем
 
-	if o.SetKeepAlive {
-		if o.KeepAliveIdle <= 0 {
-			o.KeepAliveIdle = 300
-		}
-		if o.KeepAliveInterval <= 0 {
-			o.KeepAliveInterval = 60
-		}
-		if o.KeepAliveCheckAmount <= 0 {
-			o.KeepAliveCheckAmount = 5
-		}
+	if o.KeepAliveIdle <= 0 {
+		o.KeepAliveIdle = 300
+	}
+	if o.KeepAliveInterval <= 0 {
+		o.KeepAliveInterval = 60
+	}
+	if o.KeepAliveCheckAmount <= 0 {
+		o.KeepAliveCheckAmount = 5
 	}
 
 	// буфер отправки

@@ -19,8 +19,6 @@ func TestMain(m *testing.M) {
 		RedisIp: [4]byte{127, 0, 0, 1},
 		RedisPort: 6379,
 
-		SetKeepAlive: true,
-
 		SendBufMinLen: 256,
 		SendBufMaxLen: 1024,
 		ReceiveBufMinLen: 256,
