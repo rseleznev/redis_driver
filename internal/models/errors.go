@@ -14,7 +14,6 @@ var (
 	ErrSocketAlreadyAdded = errors.New("redis_driver: socket already in interest list") // EEXIST
 	ErrSocketNotAdded = errors.New("redis_driver: socket not added in interest list") // ENOENT
 	ErrPollUnknownEventType = errors.New("redis_driver: unknown event type for polling")
-	ErrPollAlreadyExists = errors.New("redis_driver: poller already exists")
 	ErrPollDiffEventType = errors.New("redis_driver: different event type received")
 	ErrPollTimeout = errors.New("redis_driver: polling timeout is reached")
 
@@ -43,7 +42,6 @@ var (
 	ErrNoMemory = errors.New("redis_driver: not enought memory for requested operation") // ENOMEM
 	ErrSpaceAddress = errors.New("redis_driver: an invalid user space address") // EFAULT
 	ErrBadValue = errors.New("redis_driver: invalid argument passed") // EINVAL
-	// ErrRedisProtocol = errors.New("redis_driver: redis protocol error")
 	ErrTypeAssert = errors.New("redis_driver: type assertion error")
 	ErrRedisException = errors.New("redis_driver: redis server exception")
 	ErrOperationRetriesFailed = errors.New("redis_driver: all operation retries failed")
@@ -58,6 +56,5 @@ var (
 	ErrRecvMsgTrunc = errors.New("redis_driver: received message truncated")
 	ErrRecvMsgCTrunc = errors.New("redis_driver: received oob-message truncated")
 	ErrNoValue = errors.New("redis_driver: no value for given key")
-	// ErrUnknownValueType = errors.New("redis_driver: got unknown value type from server")
 	ErrRecvBufTooShort = errors.New("redis_driver: receive buffer too short to read a message")
 )
