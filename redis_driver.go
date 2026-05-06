@@ -49,6 +49,10 @@ func NewClient(opts *options.Options) (*Client, error) {
 	return client, nil
 }
 
+func (c *Client) GetOptions() *options.Options {
+	return c.opts
+}
+
 // Ping проверяет соединение с сервером
 func (c *Client) Ping(ctx context.Context) (string, error) {
 	args := make([]any, 0, 1)
