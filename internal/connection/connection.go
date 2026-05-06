@@ -244,9 +244,9 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 		return nil, models.ErrConnectionCmdInProcess
 	}
 	c.startProcessing()
-	defer c.stopProcessing()
-
 	c.mu.Unlock()
+
+	defer c.stopProcessing()
 	
 
 	if ctx.Err() != nil {
@@ -628,6 +628,13 @@ func (c *Connection) clearBufs() {
 	c.recvBuf.WritePos = 0
 }
 
+func (c *Connection) stopProcessing() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	
+	c.processing = false
+}
+
 
 // ------------------------------------------------
 // Методы, которые должны вызываться только под захваченным мьютексом
@@ -638,8 +645,4 @@ func (c *Connection) isProcessing() bool {
 
 func (c *Connection) startProcessing() {
 	c.processing = true
-}
-
-func (c *Connection) stopProcessing() {
-	c.processing = false
 }
