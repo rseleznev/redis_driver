@@ -13,6 +13,7 @@ import (
 var (
 	ErrTypeAssert = models.ErrTypeAssert
 	ErrNoValue = models.ErrNoValue
+	ErrOperationRetriesFailed = models.ErrOperationRetriesFailed
 )
 
 type Client struct {
@@ -38,9 +39,11 @@ func NewClient(opts *options.Options) (*Client, error) {
 	}
 
 	// включаем RESP3
-	_, err = client.Hello3(context.Background())
-	if err != nil {
-		return nil, err
+	if client.opts.ProtoVersion == 3 {
+		_, err = client.Hello3(context.Background())
+		if err != nil {
+			return nil, err
+		}	
 	}
 
 	return client, nil

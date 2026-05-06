@@ -8,6 +8,10 @@ type Options struct {
 	RedisIp [4]byte // сделать поудобнее, одним полем
 	RedisPort int // сделать поудобнее, одним полем
 
+	// Версия протокола RESP
+	// По умолчанию RESP3
+	ProtoVersion int
+
 	// Количество ретраев (без учета первой попытки, то есть всего будет RetryAmount + 1 попыток).
 	// Должно быть > 0. По умолчанию 3
 	//
@@ -70,6 +74,10 @@ type Options struct {
 
 // InitOptions инициализирует параметры соединения
 func (o *Options) InitOptions() {
+	if o.ProtoVersion < 2 || o.ProtoVersion > 3 {
+		o.ProtoVersion = 3
+	}
+	
 	if o.RetryAmount <= 0 {
 		o.RetryAmount = 3
 	}
