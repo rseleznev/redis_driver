@@ -22,6 +22,12 @@
 
 ## Использование
 
+Установка:
+```bash
+go get github.com/rseleznev/redis_driver@latest
+```
+
+Использование в коде:
 ```go
 // создание клиента
 redisClient, err := redis_driver.NewClient(&options.Options{
