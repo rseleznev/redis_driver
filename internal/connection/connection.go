@@ -262,11 +262,13 @@ func (c *Connection) Process(ctx context.Context, cmdArgs []any) (any, error) {
 	for {
 		err = c.coder.Encode(c.sendBuf, cmdArgs)
 		if err != nil {
+			// данные не влезают в буфер
 			if err == models.ErrSendBufTooShort {
 				if ok := c.increaseSendBuf(); ok {
 					// буфер увеличен, пытаемся заново закодировать
 					continue
 				}
+				// буфер увеличен до максимума и по-прежнему данные не влезают
 				return nil, err
 			}
 			
@@ -540,7 +542,7 @@ func (c *Connection) addSentBytes(sentBytes int) {
 
 func (c *Connection) increaseSendBuf() bool {
 	// можем ли вообще увеличить буфер
-	if c.sendBufFreeSpaceLen() <= 0 {
+	if c.sendBufAvailableSpaceLen() <= 0 {
 		return false // увеличить не можем
 	}
 
@@ -555,14 +557,14 @@ func (c *Connection) increaseSendBuf() bool {
 	}
 
 	// увеличиваем насколько возможно
-	newBuf := make([]byte, c.sendBufLen()+c.sendBufFreeSpaceLen())
+	newBuf := make([]byte, c.sendBufLen()+c.sendBufAvailableSpaceLen())
 	copy(newBuf, c.sendBuf.Buf)
 	c.sendBuf.Buf = newBuf
 	
 	return true
 }
 
-func (c *Connection) sendBufFreeSpaceLen() int {
+func (c *Connection) sendBufAvailableSpaceLen() int {
 	return c.sendBufMaxLen() - c.sendBufLen()
 }
 
@@ -576,7 +578,7 @@ func (c *Connection) sendBufLen() int {
 
 func (c *Connection) increaseRecvBuf() bool {
 	// можем ли вообще увеличить буфер
-	if c.recvBufFreeSpaceLen() <= 0 {
+	if c.recvBufAvailableSpaceLen() <= 0 {
 		return false // увеличить не можем
 	}
 
@@ -591,14 +593,14 @@ func (c *Connection) increaseRecvBuf() bool {
 	}
 
 	// увеличиваем насколько возможно
-	newBuf := make([]byte, c.recvBufLen()+c.recvBufFreeSpaceLen())
+	newBuf := make([]byte, c.recvBufLen()+c.recvBufAvailableSpaceLen())
 	copy(newBuf, c.recvBuf.Buf)
 	c.recvBuf.Buf = newBuf
 
 	return true
 }
 
-func (c *Connection) recvBufFreeSpaceLen() int {
+func (c *Connection) recvBufAvailableSpaceLen() int {
 	return c.recvBufMaxLen() - c.recvBufLen()
 }
 
