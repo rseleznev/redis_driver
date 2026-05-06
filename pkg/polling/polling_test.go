@@ -339,7 +339,9 @@ func Test_wait(t *testing.T) {
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			testPoller.sys = &tt.mockSys
+			testPoller.mu.Lock()
 			testPoller.addSocketInPolling(tt.eventForPolling)
+			testPoller.mu.Unlock()
 
 			if tt.setUpFunc != nil {
 				tt.setUpFunc()
@@ -611,8 +613,10 @@ func Test_processEvents(t *testing.T) {
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			testPoller.sys = &tt.mockSys
+			testPoller.mu.Lock()
 			testPoller.addSocketInPolling(tt.eventForPolling)
 			testPoller.addReadyEvents(tt.readyEvents)
+			testPoller.mu.Unlock()
 
 			go testPoller.processEvents(1)
 
