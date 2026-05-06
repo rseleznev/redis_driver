@@ -9,7 +9,6 @@
 - Hello3 - проверяет соединение, включает протокол RESP3 и возвращает некоторую информацию о клиенте
 - SetValueForKey - устанавливает значение для ключа, в качестве значения поддерживаются только `string` и `[]byte`
 - GetValueByKey - возвращает значение по ключу, возвращается `[]byte`
-- Close - завершает работу
 
 **Ограничения**:
 
@@ -25,7 +24,7 @@
 
 ```go
 // создание клиента
-redisClient, err = redis_driver.NewClient(&options.Options{
+redisClient, err := redis_driver.NewClient(&options.Options{
     RedisIp: [4]byte{127, 0, 0, 1},
     RedisPort: 6379,
 })
@@ -54,7 +53,7 @@ if err != nil {
 fmt.Println(string(result)) // your_value
 
 // нет значения по ключу
-noValue, err := RedisCustom.GetValueByKey(ctx, "no_value")
+noValue, err := redisClient.GetValueByKey(ctx, "no_value")
 if err != nil {
     if err == redis_driver.ErrNoValue {
         // нет значения
