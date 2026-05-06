@@ -24,34 +24,43 @@
 ## Использование
 
 ```go
-    // создание клиента
-    redisClient, err = redis_driver.NewClient(&options.Options{
-		RedisIp: [4]byte{127, 0, 0, 1},
-		RedisPort: 6379,
-	})
-    if err != nil {
-        panic(err)
+// создание клиента
+redisClient, err = redis_driver.NewClient(&options.Options{
+    RedisIp: [4]byte{127, 0, 0, 1},
+    RedisPort: 6379,
+})
+if err != nil {
+    panic(err)
+}
+
+// проверка соединения
+pong, err := redisClient.Ping(ctx)
+if err != nil {
+    panic(err)
+}
+fmt.Println(pong) // PONG
+
+// сохранение значения
+err = redisClient.SetValueForKey(ctx, "your_key", "your_value", time.Second*5)
+if err != nil {
+    panic(err)
+}
+
+// получение значения
+result, err := redisClient.GetValueByKey(ctx, "your_key")
+if err != nil {
+    panic(err)
+}
+fmt.Println(string(result)) // your_value
+
+// нет значения по ключу
+noValue, err := RedisCustom.GetValueByKey(ctx, "no_value")
+if err != nil {
+    if err == redis_driver.ErrNoValue {
+        // нет значения
     }
-
-    // проверка соединения
-    pong, err := redisClient.Ping(ctx)
-	if err != nil {
-		panic(err)
-	}
-    fmt.Println(pong) // PONG
-
-    // сохранение значения
-    err = redisClient.SetValueForKey(ctx, "your_key", "your_value", time.Second*5)
-	if err != nil {
-		panic(err)
-	}
-
-    // получение значения
-    result, err := redisClient.GetValueByKey(ctx, "your_key")
-	if err != nil {
-		panic(err)
-	}
-    fmt.Println(string(result)) // your_value
+    // другие ошибки
+}
 ```
 
 ## Сравнение с оригинальным [go-redis](https://github.com/redis/go-redis):
