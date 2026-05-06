@@ -72,6 +72,10 @@ func (c *Client) Ping(ctx context.Context) (string, error) {
 		break
 	}
 
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+
 	result, ok := r.([]byte)
 	if !ok {
 		return "", ErrTypeAssert
@@ -98,6 +102,10 @@ func (c *Client) Hello3(ctx context.Context) (map[string]string, error) {
 			return nil, err
 		}
 		break
+	}
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
 	result, ok := r.(map[string]string)
@@ -128,6 +136,10 @@ func (c *Client) SetValueForKey(ctx context.Context, key string, value any, dura
 		}
 		break
 	}
+
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	
 	return nil
 }
@@ -150,6 +162,10 @@ func (c *Client) GetValueByKey(ctx context.Context, key string) ([]byte, error) 
 			return nil, err
 		}
 		break
+	}
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
 	result, ok := r.([]byte)
